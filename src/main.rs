@@ -1,5 +1,6 @@
 //using version 2.33 not the latest one
 use clap::{App, Arg};
+use regex::Regex;
 use std::num::ParseFloatError;
 
 #[tokio::main]
@@ -34,6 +35,47 @@ async fn main() {
 
                 )
                 .subcommand(
+                    App::new("dl")
+                        .about("Sets the default leverage")
+                        .arg(
+                            Arg::with_name("amount")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("Amount of leverage")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                }),
+                        )
+
+
+                ) 
+
+                .subcommand(
+                    App::new("da")
+                        .about("Sets the default instrument to trade")
+                        .arg(
+                            Arg::with_name("asset_symbol")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("asset symbol to be traded")
+                                .validator(|v| {
+                                    if Regex::new(r"^[a-zA-Z]+$").unwrap().is_match(&v){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected alphabetic characters"))
+                                    }
+                                }),     
+                        )
+
+
+                )                                  
+                .subcommand(
                     App::new("dm")
                         .about("Sets the default margin")
                         .arg(
@@ -63,6 +105,13 @@ async fn main() {
                         .index(2)
                         .takes_value(true)
                         .help("asset symbol e.g ETH, SOL, BTC .., optional if default asset is provided")
+                        .validator(|v| {
+                            if Regex::new(r"^[a-zA-Z]+$").unwrap().is_match(&v){
+                                Ok(())
+                            }else {
+                                Err(String::from("Expected alphabetic characters"))
+                            }
+                        }),                           
 
                 )
                 .arg(
@@ -100,7 +149,14 @@ async fn main() {
                     Arg::with_name("asset_symbol")
                         .help("Asset symbol e.g ETH, SOL, BTC, optional if default asset is defined")
                         .long("symbol")
-                        .takes_value(true),
+                        .takes_value(true)
+                        .validator(|v| {
+                            if Regex::new(r"^[a-zA-Z]+$").unwrap().is_match(&v){
+                                Ok(())
+                            }else {
+                                Err(String::from("Expected alphabetic characters"))
+                            }
+                        }),                           
 
                 )
                 .arg(
@@ -158,7 +214,14 @@ async fn main() {
                                 .required(true)
                                 .index(2)
                                 .takes_value(true)
-                                .help("asset symbol to be traded"),
+                                .help("asset symbol to be traded")
+                                .validator(|v| {
+                                    if Regex::new(r"^[a-zA-Z]+$").unwrap().is_match(&v){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected alphabetic characters"))
+                                    }
+                                }),                                   
                         )
                         .arg(
                             Arg::with_name("interval")
@@ -191,7 +254,14 @@ async fn main() {
                                 .required(true)
                                 .index(2)
                                 .takes_value(true)
-                                .help("asset symbol to be traded"),
+                                .help("asset symbol to be traded")
+                                .validator(|v| {
+                                    if Regex::new(r"^[a-zA-Z]+$").unwrap().is_match(&v){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected alphabetic characters"))
+                                    }
+                                }),   
                         )
                         .arg(
                             Arg::with_name("interval")
@@ -349,7 +419,14 @@ async fn main() {
                                 .required(true)
                                 .index(2)
                                 .takes_value(true)
-                                .help("forward slash separated assets symbol to be pair traded"),
+                                .help("forward slash separated assets symbol to be pair traded")
+                                .validator(|v| {
+                                    if Regex::new(r"^[a-zA-Z]+$").unwrap().is_match(&v){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected alphabetic characters"))
+                                    }
+                                }),                                   
                         )
                         .arg(
                             Arg::with_name("limit_price")
@@ -462,6 +539,12 @@ async fn main() {
                 _=> unreachable!(), // we should not get here because of the possible value checker
             
             }
+        }else if let Some(da_match) = set_matches.subcommand_matches("da"){
+            let asset_symbol = da_match.value_of("asset_symbol").unwrap();
+            println! ("You have set {} as your default asset to be traded", asset_symbol)
+        }else if let Some(dl_match) = set_matches.subcommand_matches("dl"){
+            let leverage = dl_match.value_of("amount").unwrap().parse::<f64>().unwrap();
+            println! ("You have set {} as your default leverage size", leverage);
         }
 
     // handles the tp <% of order to tp>  <asset symbol> <tp price or %/$ gain in asset before tp or %/$ gain in pnl before tp>
