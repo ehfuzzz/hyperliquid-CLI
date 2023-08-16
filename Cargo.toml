@@ -2,7 +2,7 @@
 name = "hyperliquid"
 version = "0.1.0"
 edition = "2021"
-authors = [""]
+authors = ["Koleshjr, Bill"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,3 +13,4 @@ reqwest = { version = "0.11.18", default-features = false }
 secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.183", features = ["derive"] }
 tokio = { version = "1.31.0", features = ["macros", "rt-multi-thread"] }
+regex = "1.5"
