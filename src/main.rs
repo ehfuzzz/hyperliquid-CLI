@@ -503,13 +503,13 @@ fn validate_sl_price(value: String) -> Result<(), String> {
                 Err(String::from("Invalid USDC format: correct example -$300"))
             }
         } else if value.ends_with("%pnl") {
-            if value.trim_end_matches("%pnl").parse::<f64>().is_ok() {
+            if value[1..].trim_end_matches("%pnl").parse::<f64>().is_ok() {
                 Ok(())
             } else {
                 Err(String::from(" Invalid % pnl format: correct example: -30%pnl"))
             }
         } else if value.ends_with("pnl") {
-            if value.trim_end_matches("pnl").parse::<f64>().is_ok() {
+            if value[1..].trim_end_matches("pnl").parse::<f64>().is_ok() {
                 Ok(())
             } else {
                 Err(String::from(" Invalid pnl format: correct example: -300pnl"))
