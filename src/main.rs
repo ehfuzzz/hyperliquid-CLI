@@ -201,7 +201,155 @@ async fn main() {
                                 .help("comma separated values of: Time between intervals in minutes, number of intervals e.g 10 means 10 minutes")
                         ),
                 )
-        )   
+        ) 
+        .subcommand(
+            App::new("pair")
+                .about("Handles the pair buy and pair sell logic")
+                .subcommand(
+                    App::new("buy")
+                        .about("pair buy")
+                        .arg(
+                            Arg::with_name("order_size")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("Total Order Size")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                }),
+                        )
+                        .arg(
+                            Arg::with_name("asset_symbols")
+                                .required(true)
+                                .index(2)
+                                .takes_value(true)
+                                .help("forward slash separated assets symbol to be pair traded"),
+                        )
+                        .arg(
+                            Arg::with_name("limit_price")
+                                .required(false)
+                                .index(3)
+                                .takes_value(true)
+                                .help("Limit price if applicable ")
+                                .validator(|v| {
+
+                                    if v.starts_with("@"){
+                                        /*    If the parsing is successful, it returns Ok(()) (indicating success but discarding the float).
+                                            If the parsing fails, it returns an error message as a String. */
+                                        v[1..].parse::<f64>().map(|_| (())).map_err(|e| e.to_string())
+                                    }else{
+                                        Err(String::from("Expected an @ symbol at the start"))
+                                    }
+                                })
+                        )
+                        .arg(
+                            Arg::with_name("stop_loss")
+                                .required(false)
+                                .index(4)
+                                .takes_value(true)
+                                .help("stop loss if applicable")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                })
+                        )
+                        .arg(
+                            Arg::with_name("take_profit")
+                                .required(false)
+                                .index(5)
+                                .takes_value(true)
+                                .help("Take profit if applicable")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                })
+
+                        )
+
+                )
+                .subcommand(
+                    App::new("sell")
+                        .about("pair sell")
+                        .arg(
+                            Arg::with_name("order_size")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("Total Order Size")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                }),
+                        )
+                        .arg(
+                            Arg::with_name("asset_symbols")
+                                .required(true)
+                                .index(2)
+                                .takes_value(true)
+                                .help("forward slash separated assets symbol to be pair traded"),
+                        )
+                        .arg(
+                            Arg::with_name("limit_price")
+                                .required(false)
+                                .index(3)
+                                .takes_value(true)
+                                .help("Limit price if applicable ")
+                                .validator(|v| {
+
+                                    if v.starts_with("@"){
+                                        /*    If the parsing is successful, it returns Ok(()) (indicating success but discarding the float).
+                                            If the parsing fails, it returns an error message as a String. */
+                                        v[1..].parse::<f64>().map(|_| (())).map_err(|e| e.to_string())
+                                    }else{
+                                        Err(String::from("Expected an @ symbol at the start"))
+                                    }
+                                })
+                        )
+                        .arg(
+                            Arg::with_name("stop_loss")
+                                .required(false)
+                                .index(4)
+                                .takes_value(true)
+                                .help("stop loss if applicable")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                })
+                        )
+                        .arg(
+                            Arg::with_name("take_profit")
+                                .required(false)
+                                .index(5)
+                                .takes_value(true)
+                                .help("Take profit if applicable")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok(){
+                                        Ok(())
+                                    }else {
+                                        Err(String::from("Expected a numeric value"))
+                                    }
+                                })
+
+                        )
+
+                )
+        )             
 
         .get_matches();
 
@@ -289,7 +437,7 @@ async fn main() {
             }
             tp_price if tp_price.starts_with("+$") => {
                 let numeric_part = &tp_price[2..];
-                let converted_value = numeric_part.parse::<u32>().unwrap();
+                let converted_value = numeric_part.parse::<f64>().unwrap();
                 println!("Logic for handling +$300: {}", converted_value);
             }
             tp_price if tp_price.trim_start_matches("+").ends_with("%pnl") => {
@@ -299,7 +447,7 @@ async fn main() {
             }            
             tp_price if tp_price.trim_start_matches("+").ends_with("pnl") => {
                 let numeric_part = &tp_price[1..tp_price.len() - 3];
-                let converted_value = numeric_part.parse::<u32>().unwrap();
+                let converted_value = numeric_part.parse::<f64>().unwrap();
                 println!("Logic for handling +300pnl: {}", converted_value);
             }
 
@@ -358,7 +506,7 @@ async fn main() {
 
         // twap buy <total order size> <asset symbol>  <time between interval in mins, number of intervals>
         if let Some(twapbuy_matches) = twap_matches.subcommand_matches("buy") {
-            let order_size = twapbuy_matches.value_of("order_size").unwrap();
+            let order_size = twapbuy_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
             let asset_symbol = twapbuy_matches.value_of("asset_symbol").unwrap();
             let intervals: Vec<&str> = twapbuy_matches.value_of("interval").unwrap().split(",").collect();
 
@@ -369,7 +517,7 @@ async fn main() {
             
         //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
         }else if let Some(twapsell_matches) = twap_matches.subcommand_matches("sell") {
-            let order_size = twapsell_matches.value_of("order_size").unwrap();
+            let order_size = twapsell_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
             let asset_symbol = twapsell_matches.value_of("asset_symbol").unwrap();
             let intervals: Vec<&str> = twapsell_matches.value_of("interval").unwrap().split(",").collect();
 
@@ -380,9 +528,71 @@ async fn main() {
         }else{
             println! ("Invalid choice: we only have twap buy and twap sell");
         }
+    }else if let Some(pair_matches) = matches.subcommand_matches("pair"){
+
+        //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
+
+        if let Some(pairbuy_matches) = pair_matches.subcommand_matches("buy"){
+            let order_size = pairbuy_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
+            let asset_symbols: Vec<&str> = pairbuy_matches.value_of("asset_symbols").unwrap().split("/").collect();
+            let limit_price = pairbuy_matches.value_of("limit_price");
+            let stop_loss = pairbuy_matches.value_of("stop_loss");
+            let take_profit = pairbuy_matches.value_of("take_profit");
+
+            println! ("pair buy order size: {}, asset_symbols: {:?}, asset_1: {:?}, asset_2: {:?}", 
+            order_size,asset_symbols, asset_symbols.get(0), asset_symbols.get(1));  
+
+            if let Some(lp) = limit_price{
+                println! ("Limit price provided: {}", lp);
+            }else{
+                println! (" The already set default limit price rules will be used");
+            }
+            if let Some(sl) = stop_loss{
+                println! ("Stop loss provided: {}", sl);
+            }else{
+                println! (" The already set stop loss rules will be used");
+            }
+            if let Some(tp) = take_profit{
+                println! ("Take profit provided: {}", tp);
+            }else{
+                println! (" The already set default take profit rules will be used");
+            }                        
+
+        //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
+
+        } else if let Some(pairsell_matches) = pair_matches.subcommand_matches("sell"){
+            let order_size = pairsell_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
+            let asset_symbols: Vec<&str> = pairsell_matches.value_of("asset_symbols").unwrap().split("/").collect();
+            let limit_price = pairsell_matches.value_of("limit_price");
+            let stop_loss = pairsell_matches.value_of("stop_loss");
+            let take_profit = pairsell_matches.value_of("take_profit");     
+
+            println! ("pair sell order size: {}, asset_symbols: {:?}, asset_1: {:?}, asset_2: {:?}", 
+            order_size,asset_symbols, asset_symbols.get(0), asset_symbols.get(1));  
+
+
+            if let Some(lp) = limit_price{
+                println! ("Limit price provided: {}", lp);
+            }else{
+                println! (" The already set default limit price rules will be used");
+            }
+            if let Some(sl) = stop_loss{
+                println! ("Stop loss provided: {}", sl);
+            }else{
+                println! (" The already set stop loss rules will be used");
+            }
+            if let Some(tp) = take_profit{
+                println! ("Take profit provided: {}", tp);
+            }else{
+                println! (" The already set default take profit rules will be used");
+            }            
+        }else{
+            println! ("Invalid Pair command: We only have pair buy and pair sell");
+        }
     }
 
 }
+
 
 
 //Helper functions to handle validation and logic: we start with one to validate the value size for some of the commands
