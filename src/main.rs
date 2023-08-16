@@ -106,6 +106,150 @@ async fn main() {
                         .validator(validate_sl_price)
                 )
         )
+        .subcommand(
+            App::new("scale")
+                .about("Handles the scale buy and sell logic")
+                .subcommand(
+                    App::new("buy")
+                        .about("scale buy")
+                        .arg(
+                            Arg::with_name("total_order_size")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("Total Order Size")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+                        .arg(
+                            Arg::with_name("interval")
+                                .required(true)
+                                .index(2)
+                                .takes_value(true)
+                                .help("Number of orders to place ie Total Order Size / interval")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+
+                        .arg(
+                            Arg::with_name("asset_symbol")
+                                .required(true)
+                                .index(3)
+                                .takes_value(true)
+                                .help("asset symbol e.g ETH, SOL, BTC")
+                        )
+
+                        .arg(
+                            Arg::with_name("lower_price_bracket")
+                                .required(true)
+                                .index(4)
+                                .takes_value(true)
+                                .help("Price to start buying from")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+
+                        .arg(
+                            Arg::with_name("upper_price_bracket")
+                                .required(true)
+                                .index(5)
+                                .takes_value(true)
+                                .help("Price to stop buying at")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+                )
+                .subcommand(
+                    App::new("sell")
+                        .about("scale sell")
+                        .arg(
+                            Arg::with_name("total_order_size")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("Total Order Size")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+                        .arg(
+                            Arg::with_name("interval")
+                                .required(true)
+                                .index(2)
+                                .takes_value(true)
+                                .help("Number of orders to place ie Total Order Size / interval")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+
+                        .arg(
+                            Arg::with_name("asset_symbol")
+                                .required(true)
+                                .index(3)
+                                .takes_value(true)
+                                .help("asset symbol e.g ETH, SOL, BTC")
+                        )
+
+                        .arg(
+                            Arg::with_name("lower_price_bracket")
+                                .required(true)
+                                .index(4)
+                                .takes_value(true)
+                                .help("Price to start selling from")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+
+                        .arg(
+                            Arg::with_name("upper_price_bracket")
+                                .required(true)
+                                .index(5)
+                                .takes_value(true)
+                                .help("Price to stop selling at")
+                                .validator(|v| {
+                                    if v.parse::<f64>().is_ok() {
+                                        Ok(())
+                                    } else {
+                                        Err(String::from("Invalid value"))
+                                    }
+                                })
+                        )
+                )
+        )
 
         .get_matches();
 
@@ -199,8 +343,7 @@ async fn main() {
                 println!("No matching pattern");
             }
         }
-    }
-    else if let Some(sl_matches) = matches.subcommand_matches("sl"){
+    } else if let Some(sl_matches) = matches.subcommand_matches("sl") {
         let percentage_order = sl_matches.value_of("percentage_order").unwrap();
         let asset_symbol = sl_matches.value_of("asset_symbol").unwrap();
         let sl_price = sl_matches.value_of("sl_price").unwrap();
@@ -246,6 +389,46 @@ async fn main() {
                 println!("No matching pattern");
             }
         }
+
+        //Handle Scale Buy  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
+    } else if let Some(scale_buy_matches) = matches.subcommand_matches("buy") {
+        let total_order_size = scale_buy_matches.value_of("total_order_size").unwrap();
+        let asset_symbol = scale_buy_matches.value_of("asset_symbol").unwrap();
+        let lower_price_bracket = scale_buy_matches.value_of("lower_price_bracket").unwrap();
+        let upper_price_bracket = scale_buy_matches.value_of("upper_price_bracket").unwrap();
+        let interval = scale_buy_matches.value_of("interval").unwrap();
+
+        let converted_total_order_size =
+            total_order_size.parse::<f64>().unwrap() / interval.parse::<f64>().unwrap();
+
+        println!(
+            "converted_total_order_size: {}, asset_symbol: {}, lower_price_bracket: {}, upper_price_bracket: {}, interval: {}",
+            converted_total_order_size,
+            asset_symbol,
+            lower_price_bracket,
+            upper_price_bracket,
+            interval
+        );
+
+        //Handle Scale Sell  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
+    } else if let Some(scale_sell_matches) = matches.subcommand_matches("sell") {
+        let total_order_size = scale_sell_matches.value_of("total_order_size").unwrap();
+        let interval = scale_sell_matches.value_of("interval").unwrap();
+        let asset_symbol = scale_sell_matches.value_of("asset_symbol").unwrap();
+        let lower_price_bracket = scale_sell_matches.value_of("lower_price_bracket").unwrap();
+        let upper_price_bracket = scale_sell_matches.value_of("upper_price_bracket").unwrap();
+
+        let converted_total_order_size =
+            total_order_size.parse::<f64>().unwrap() / interval.parse::<f64>().unwrap();
+
+        println!(
+            "converted_total_order_size: {}, asset_symbol: {}, lower_price_bracket: {}, upper_price_bracket: {}, interval: {}",
+            converted_total_order_size,
+            asset_symbol,
+            lower_price_bracket,
+            upper_price_bracket,
+            interval
+        );
     }
 }
 
