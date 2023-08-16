@@ -203,6 +203,56 @@ async fn main() {
                 )
         ) 
         .subcommand(
+            App::new("view")
+                .about("Handles the view commands")
+                .subcommand(
+                    App::new("pnl")
+                        .about("view pnl")
+                        .help("Use to display the account's PNL")
+
+                )
+                .subcommand(
+                    App::new("wallet")
+                        .about("view wallet balance")
+                        .arg(
+                            Arg::with_name("balance")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("argument to complete the view wallet balance command")
+                                .possible_values(&["balance"])
+                        )
+
+                )
+                .subcommand(
+                    App::new("unfilled")
+                        .about("view unfilled orders")
+                        .arg(
+                            Arg::with_name("orders")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("argument to complete the view unfilled orders command")
+                                .possible_values(&["orders"])
+                        )
+
+                ) 
+                .subcommand(
+                    App::new("open")
+                        .about("view open positions")
+                        .arg(
+                            Arg::with_name("positions")
+                                .required(true)
+                                .index(1)
+                                .takes_value(true)
+                                .help("argument to complete the view open positions command")
+                                .possible_values(&["positions"])
+                        )
+
+                )                               
+        )
+
+        .subcommand(
             App::new("pair")
                 .about("Handles the pair buy and pair sell logic")
                 .subcommand(
@@ -528,7 +578,30 @@ async fn main() {
         }else{
             println! ("Invalid choice: we only have twap buy and twap sell");
         }
-    }else if let Some(pair_matches) = matches.subcommand_matches("pair"){
+    }
+    else if let Some(view_matches) = matches.subcommand_matches("view"){
+
+        match view_matches.subcommand_name(){
+            Some("pnl") => {
+                println! ("Implement view pnl logic");
+            }
+            Some("wallet") => {
+                println!("Implement view wallet balance logic");
+            }
+            Some("unfilled") => {
+                println! ("Implement view unfilled orders logic");
+            }
+            Some("open") => {
+                println! ("Implement view open positions logic")
+            }
+            _=> {
+                println! (" Invalid command: expected commands: (view pnl, view wallet balance, view unfilled orders, view open positions");
+            }
+        }
+
+    }
+    
+    else if let Some(pair_matches) = matches.subcommand_matches("pair"){
 
         //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
 
@@ -558,8 +631,8 @@ async fn main() {
                 println! (" The already set default take profit rules will be used");
             }                        
 
-        //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
 
+        //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
         } else if let Some(pairsell_matches) = pair_matches.subcommand_matches("sell"){
             let order_size = pairsell_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
             let asset_symbols: Vec<&str> = pairsell_matches.value_of("asset_symbols").unwrap().split("/").collect();
