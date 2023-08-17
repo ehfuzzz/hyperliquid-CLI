@@ -105,3 +105,27 @@ pub fn validate_sl_price(value: String) -> Result<(), String> {
         ))
     }
 }
+
+pub fn validate_limit_price(value: String) -> Result<(), String> {
+    if value.starts_with("@") && value.len() > 1 {
+        if validate_value(value[1..].to_string()).is_ok() {
+            Ok(())
+        } else {
+            Err(String::from(
+                "Invalid limit price format: correct example @100",
+            ))
+        }
+    } else {
+        Err(String::from(
+            "Invalid limit price format: correct example @100",
+        ))
+    }
+}
+
+pub fn validate_value(value: String) -> Result<(), String> {
+    if value.parse::<f64>().is_ok() {
+        Ok(())
+    } else {
+        Err(String::from("Invalid price format: correct example 100"))
+    }
+}
