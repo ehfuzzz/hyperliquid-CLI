@@ -2,10 +2,15 @@
 use clap::{App, Arg};
 use regex::Regex;
 
+mod settings;
+
+use settings::Settings;
 
 #[tokio::main]
 //clip logic to setup commands
 async fn main() {
+    let _settings = Settings::new().expect("Failed to load config");
+
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -57,7 +62,6 @@ async fn main() {
                 )                                  
 
         )
-
         .subcommand(
             App::new("buy")
                 .about(" Handles the Buy command")
@@ -252,7 +256,6 @@ async fn main() {
 
                 )                               
         )
-
         .subcommand(
             App::new("pair")
                 .about("Handles the pair buy and pair sell logic")
@@ -408,179 +411,211 @@ async fn main() {
 
                 )
         )             
+    .get_matches();
 
-        .get_matches();
+    match matches.subcommand() {
+        ("set", Some(set_matches)) => match set_matches.subcommand() {
+            ("da", Some(da_match)) => {
+                let asset_symbol = da_match.value_of("asset_symbol").unwrap();
+                println!(
+                    "You have set {} as your default asset to be traded",
+                    asset_symbol
+                )
+            }
+            ("dl", Some(dl_match)) => {
+                let leverage = dl_match.value_of("amount").unwrap().parse::<f64>().unwrap();
+                println!("You have set {} as your default leverage size", leverage);
+            }
+            _ => {
+                println!("No subcommand was used");
+            }
+        },
+        ("buy", Some(buy_matches)) => {
+            let buy_size = buy_matches.value_of("order_size");
+            let asset_symbol = buy_matches.value_of("asset_symbol");
+            let limit_price = buy_matches.value_of("limit_price");
+            let take_profit = buy_matches.value_of("take_profit");
+            let stop_loss = buy_matches.value_of("stop_loss");
 
+            if let Some(size) = buy_size {
+                //preprocess the String to get the numeric size
+                let numeric_part = &size[1..].parse::<f64>().unwrap();
+                println!("Buy size: {}", numeric_part)
+            } else {
+                //Filled with the default size already set
+                println!("Filled with the default size already specified")
+            }
+            if let Some(symbol) = asset_symbol {
+                println!("Asset symbol: {}", symbol);
+            } else {
+                //Filled with the default size already set
+                println!("Filled with the default symbol already specified")
+            }
+            if let Some(price) = limit_price {
+                let numeric_part = &price[1..].parse::<f64>().unwrap();
+                println!("Limit price: {}", numeric_part);
+            } else {
+                //Filled with the default size already set
+                println!("Filled with the default limit rules already specified")
+            }
+            if let Some(tp) = take_profit {
+                let numeric_part = &tp.parse::<f64>().unwrap();
+                println!("Take profit: {}", numeric_part);
+            } else {
+                //Filled with the default size already set
+                println!("Filled with the default tp rules already specified")
+            }
 
-    // Conditional logic to handle the command choices from the user : we start with the set command, it has sub commands like ds, dm 
-    if let Some(set_matches) = matches.subcommand_matches("set") {
-
-        if let Some(da_match) = set_matches.subcommand_matches("da"){
-            let asset_symbol = da_match.value_of("asset_symbol").unwrap();
-            println! ("You have set {} as your default asset to be traded", asset_symbol)
-        }else if let Some(dl_match) = set_matches.subcommand_matches("dl"){
-            let leverage = dl_match.value_of("amount").unwrap().parse::<f64>().unwrap();
-            println! ("You have set {} as your default leverage size", leverage);
+            if let Some(sl) = stop_loss {
+                let numeric_part = &sl.parse::<f64>().unwrap();
+                println!("Stop Loss: {}", numeric_part);
+            } else {
+                //Filled with the default size already set
+                println!("Filled with the default sl rules already specified")
+            }
         }
+        ("twap", Some(twap_matches)) => {
+            // twap buy <total order size> <asset symbol>  <time between interval in mins, number of intervals>
 
-    // handles the tp <% of order to tp>  <asset symbol> <tp price or %/$ gain in asset before tp or %/$ gain in pnl before tp>
-    }else if let Some(buy_matches) = matches.subcommand_matches("buy"){
-        let buy_size = buy_matches.value_of("order_size");
-        let asset_symbol = buy_matches.value_of("asset_symbol");
-        let limit_price = buy_matches.value_of("limit_price");
-        let take_profit = buy_matches.value_of("take_profit");
-        let stop_loss = buy_matches.value_of("stop_loss");
+            match twap_matches.subcommand() {
+                ("buy", Some(twapbuy_matches)) => {
+                    let order_size = twapbuy_matches
+                        .value_of("order_size")
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap();
+                    let asset_symbol = twapbuy_matches.value_of("asset_symbol").unwrap();
+                    let intervals: Vec<&str> = twapbuy_matches
+                        .value_of("interval")
+                        .unwrap()
+                        .split(",")
+                        .collect();
 
-        if let Some(size) = buy_size {
-            //preprocess the String to get the numeric size
-            let numeric_part = &size[1..].parse::<f64>().unwrap();
-            println! ("Buy size: {}", numeric_part)
-        }else{
-            //Filled with the default size already set
-            println! ("Filled with the default size already specified")
+                    println! ("twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}", order_size, asset_symbol, intervals, intervals.get(0));
+
+                    //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
+                }
+                ("sell", Some(twapsell_matches)) => {
+                    let order_size = twapsell_matches
+                        .value_of("order_size")
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap();
+                    let asset_symbol = twapsell_matches.value_of("asset_symbol").unwrap();
+                    let intervals: Vec<&str> = twapsell_matches
+                        .value_of("interval")
+                        .unwrap()
+                        .split(",")
+                        .collect();
+
+                    println! ("twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}", order_size, asset_symbol, intervals, intervals.get(0));
+                }
+                _ => {
+                    println!("No subcommand was used");
+                }
+            }
         }
-        if let Some(symbol) = asset_symbol {
-            println! ("Asset symbol: {}", symbol);
-        }else{
-            //Filled with the default size already set
-            println! ("Filled with the default symbol already specified")            
-        }
-        if let Some(price) = limit_price {
-            let numeric_part = &price[1..].parse::<f64>().unwrap();
-            println! ("Limit price: {}", numeric_part);
-        }else{
-            //Filled with the default size already set
-            println! ("Filled with the default limit rules already specified")            
-        }
-        if let Some(tp) = take_profit {
-            let numeric_part = &tp.parse::<f64>().unwrap();
-            println! ("Take profit: {}", numeric_part);
-        }else{
-            //Filled with the default size already set
-            println! ("Filled with the default tp rules already specified")            
-        }
-
-        if let Some(sl) = stop_loss {
-            let numeric_part = &sl.parse::<f64>().unwrap();
-            println! ("Stop Loss: {}", numeric_part);
-        }else{
-            //Filled with the default size already set
-            println! ("Filled with the default sl rules already specified")            
-        }    
-
-        
-    }else if let Some(twap_matches) = matches.subcommand_matches("twap") {
-
-        // twap buy <total order size> <asset symbol>  <time between interval in mins, number of intervals>
-        if let Some(twapbuy_matches) = twap_matches.subcommand_matches("buy") {
-            let order_size = twapbuy_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
-            let asset_symbol = twapbuy_matches.value_of("asset_symbol").unwrap();
-            let intervals: Vec<&str> = twapbuy_matches.value_of("interval").unwrap().split(",").collect();
-
-            
-
-            println! ("twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}", order_size, asset_symbol, intervals, intervals.get(0));           
-
-            
-        //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
-        }else if let Some(twapsell_matches) = twap_matches.subcommand_matches("sell") {
-            let order_size = twapsell_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
-            let asset_symbol = twapsell_matches.value_of("asset_symbol").unwrap();
-            let intervals: Vec<&str> = twapsell_matches.value_of("interval").unwrap().split(",").collect();
-
-            println! ("twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}", order_size, asset_symbol, intervals, intervals.get(0));
-            
-
-    
-        }else{
-            println! ("Invalid choice: we only have twap buy and twap sell");
-        }
-    }
-    else if let Some(view_matches) = matches.subcommand_matches("view"){
-
-        match view_matches.subcommand_name(){
+        ("view", Some(view_matches)) => match view_matches.subcommand_name() {
             Some("pnl") => {
-                println! ("Implement view pnl logic");
+                println!("Implement view pnl logic");
             }
             Some("wallet") => {
                 println!("Implement view wallet balance logic");
             }
             Some("unfilled") => {
-                println! ("Implement view unfilled orders logic");
+                println!("Implement view unfilled orders logic");
             }
             Some("open") => {
-                println! ("Implement view open positions logic")
+                println!("Implement view open positions logic")
             }
-            _=> {
+            _ => {
                 println! (" Invalid command: expected commands: (view pnl, view wallet balance, view unfilled orders, view open positions");
             }
+        },
+
+        ("pair", Some(pair_matches)) => {
+            //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
+
+            match pair_matches.subcommand() {
+                ("buy", Some(buy_matches)) => {
+                    let order_size = buy_matches
+                        .value_of("order_size")
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap();
+                    let asset_symbols: Vec<&str> = buy_matches
+                        .value_of("asset_symbols")
+                        .unwrap()
+                        .split("/")
+                        .collect();
+                    let limit_price = buy_matches.value_of("limit_price");
+                    let stop_loss = buy_matches.value_of("stop_loss");
+                    let take_profit = buy_matches.value_of("take_profit");
+
+                    println! ("pair buy order size: {}, asset_symbols: {:?}, asset_1: {:?}, asset_2: {:?}", 
+            order_size,asset_symbols, asset_symbols.get(0), asset_symbols.get(1));
+
+                    if let Some(lp) = limit_price {
+                        println!("Limit price provided: {}", lp);
+                    } else {
+                        println!(" The already set default limit price rules will be used");
+                    }
+                    if let Some(sl) = stop_loss {
+                        println!("Stop loss provided: {}", sl);
+                    } else {
+                        println!(" The already set stop loss rules will be used");
+                    }
+                    if let Some(tp) = take_profit {
+                        println!("Take profit provided: {}", tp);
+                    } else {
+                        println!(" The already set default take profit rules will be used");
+                    }
+
+                    //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
+                }
+                ("sell", Some(sell_matches)) => {
+                    let order_size = sell_matches
+                        .value_of("order_size")
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap();
+                    let asset_symbols: Vec<&str> = sell_matches
+                        .value_of("asset_symbols")
+                        .unwrap()
+                        .split("/")
+                        .collect();
+                    let limit_price = sell_matches.value_of("limit_price");
+                    let stop_loss = sell_matches.value_of("stop_loss");
+                    let take_profit = sell_matches.value_of("take_profit");
+
+                    println! ("pair sell order size: {}, asset_symbols: {:?}, asset_1: {:?}, asset_2: {:?}", 
+            order_size,asset_symbols, asset_symbols.get(0), asset_symbols.get(1));
+
+                    if let Some(lp) = limit_price {
+                        println!("Limit price provided: {}", lp);
+                    } else {
+                        println!(" The already set default limit price rules will be used");
+                    }
+                    if let Some(sl) = stop_loss {
+                        println!("Stop loss provided: {}", sl);
+                    } else {
+                        println!(" The already set stop loss rules will be used");
+                    }
+                    if let Some(tp) = take_profit {
+                        println!("Take profit provided: {}", tp);
+                    } else {
+                        println!(" The already set default take profit rules will be used");
+                    }
+                }
+
+                _ => {
+                    println!("Invalid Pair command: We only have pair buy and pair sell");
+                }
+            }
         }
 
-    }
-    
-    else if let Some(pair_matches) = matches.subcommand_matches("pair"){
-
-        //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
-
-        if let Some(pairbuy_matches) = pair_matches.subcommand_matches("buy"){
-            let order_size = pairbuy_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
-            let asset_symbols: Vec<&str> = pairbuy_matches.value_of("asset_symbols").unwrap().split("/").collect();
-            let limit_price = pairbuy_matches.value_of("limit_price");
-            let stop_loss = pairbuy_matches.value_of("stop_loss");
-            let take_profit = pairbuy_matches.value_of("take_profit");
-
-            println! ("pair buy order size: {}, asset_symbols: {:?}, asset_1: {:?}, asset_2: {:?}", 
-            order_size,asset_symbols, asset_symbols.get(0), asset_symbols.get(1));  
-
-            if let Some(lp) = limit_price{
-                println! ("Limit price provided: {}", lp);
-            }else{
-                println! (" The already set default limit price rules will be used");
-            }
-            if let Some(sl) = stop_loss{
-                println! ("Stop loss provided: {}", sl);
-            }else{
-                println! (" The already set stop loss rules will be used");
-            }
-            if let Some(tp) = take_profit{
-                println! ("Take profit provided: {}", tp);
-            }else{
-                println! (" The already set default take profit rules will be used");
-            }                        
-
-
-        //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable> 
-        } else if let Some(pairsell_matches) = pair_matches.subcommand_matches("sell"){
-            let order_size = pairsell_matches.value_of("order_size").unwrap().parse::<f64>().unwrap();
-            let asset_symbols: Vec<&str> = pairsell_matches.value_of("asset_symbols").unwrap().split("/").collect();
-            let limit_price = pairsell_matches.value_of("limit_price");
-            let stop_loss = pairsell_matches.value_of("stop_loss");
-            let take_profit = pairsell_matches.value_of("take_profit");     
-
-            println! ("pair sell order size: {}, asset_symbols: {:?}, asset_1: {:?}, asset_2: {:?}", 
-            order_size,asset_symbols, asset_symbols.get(0), asset_symbols.get(1));  
-
-
-            if let Some(lp) = limit_price{
-                println! ("Limit price provided: {}", lp);
-            }else{
-                println! (" The already set default limit price rules will be used");
-            }
-            if let Some(sl) = stop_loss{
-                println! ("Stop loss provided: {}", sl);
-            }else{
-                println! (" The already set stop loss rules will be used");
-            }
-            if let Some(tp) = take_profit{
-                println! ("Take profit provided: {}", tp);
-            }else{
-                println! (" The already set default take profit rules will be used");
-            }            
-        }else{
-            println! ("Invalid Pair command: We only have pair buy and pair sell");
+        _ => {
+            println!("Invalid command: expected commands: (buy, sell, twap, view, pair)");
         }
     }
-
 }
-
-
