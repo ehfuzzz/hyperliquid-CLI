@@ -3,10 +3,9 @@ use clap::{App, Arg};
 use regex::Regex;
 use std::num::ParseFloatError;
 
-
-mod settings;
 mod handlers;
 mod helpers;
+mod settings;
 
 use handlers::{
     handle_cross_margin, handle_isolated_margin, handle_notional_value, handle_risk_value,
@@ -14,9 +13,7 @@ use handlers::{
 use helpers::{validate_sl_price, validate_tp_price, validate_value_size};
 use settings::Settings;
 
-
 #[tokio::main]
-//clip logic to setup commands
 async fn main() {
     let _settings = Settings::new().expect("Failed to load config");
 
@@ -662,48 +659,48 @@ async fn main() {
     match matches.subcommand() {
         ("set", Some(set_matches)) => match set_matches.subcommand() {
             ("ds", Some(ds_matches)) => {
-                    let size_type = ds_matches.value_of("size_type").unwrap();
-                    let value_size = ds_matches.value_of("value_size").unwrap();
-    
-                    let converted_value: Result<f64, ParseFloatError> = if value_size.ends_with('%') {
-                        value_size
-                            .trim_end_matches('%')
-                            .parse::<f64>()
-                            .map(|percent| percent / 100.0)
-                    } else {
-                        value_size.trim_start_matches('$').parse::<f64>()
-                    };
-    
-                    match size_type {
-                        "risk" => match converted_value {
-                            Ok(value) => {
-                                handle_risk_value(value);
-                            }
-                            Err(_) => {
-                                println!("Invalid value format");
-                            }
-                        },
-                        "notional" => match converted_value {
-                            Ok(value) => {
-                                handle_notional_value(value);
-                            }
-                            Err(_) => {
-                                println!("Invalid value format");
-                            }
-                        },
-                        _ => unreachable!(),
-                    }
-                }
-            ("dm", Some(dm_matches)) => {
-                        let margin_type = dm_matches.value_of("margin_type").unwrap();
-                        println!("Margin type: {}", margin_type);
-        
-                        match margin_type {
-                            "i" => handle_isolated_margin(margin_type),
-                            "c" => handle_cross_margin(margin_type),
-                            _ => unreachable!(), // we should not get here because of the possible value checker
+                let size_type = ds_matches.value_of("size_type").unwrap();
+                let value_size = ds_matches.value_of("value_size").unwrap();
+
+                let converted_value: Result<f64, ParseFloatError> = if value_size.ends_with('%') {
+                    value_size
+                        .trim_end_matches('%')
+                        .parse::<f64>()
+                        .map(|percent| percent / 100.0)
+                } else {
+                    value_size.trim_start_matches('$').parse::<f64>()
+                };
+
+                match size_type {
+                    "risk" => match converted_value {
+                        Ok(value) => {
+                            handle_risk_value(value);
                         }
-                    }
+                        Err(_) => {
+                            println!("Invalid value format");
+                        }
+                    },
+                    "notional" => match converted_value {
+                        Ok(value) => {
+                            handle_notional_value(value);
+                        }
+                        Err(_) => {
+                            println!("Invalid value format");
+                        }
+                    },
+                    _ => unreachable!(),
+                }
+            }
+            ("dm", Some(dm_matches)) => {
+                let margin_type = dm_matches.value_of("margin_type").unwrap();
+                println!("Margin type: {}", margin_type);
+
+                match margin_type {
+                    "i" => handle_isolated_margin(margin_type),
+                    "c" => handle_cross_margin(margin_type),
+                    _ => unreachable!(), // we should not get here because of the possible value checker
+                }
+            }
 
             ("da", Some(da_match)) => {
                 let asset_symbol = da_match.value_of("asset_symbol").unwrap();
@@ -859,17 +856,19 @@ async fn main() {
         }
         ("scale", Some(scale_matches)) => {
             match scale_matches.subcommand() {
-            ("buy", Some(scale_buy_matches)) => {
-                let total_order_size = scale_buy_matches.value_of("total_order_size").unwrap();
-                let asset_symbol = scale_buy_matches.value_of("asset_symbol").unwrap();
-                let lower_price_bracket = scale_buy_matches.value_of("lower_price_bracket").unwrap();
-                let upper_price_bracket = scale_buy_matches.value_of("upper_price_bracket").unwrap();
-                let interval = scale_buy_matches.value_of("interval").unwrap();
-    
-                let converted_total_order_size =
-                    total_order_size.parse::<f64>().unwrap() / interval.parse::<f64>().unwrap();
-    
-                println!(
+                ("buy", Some(scale_buy_matches)) => {
+                    let total_order_size = scale_buy_matches.value_of("total_order_size").unwrap();
+                    let asset_symbol = scale_buy_matches.value_of("asset_symbol").unwrap();
+                    let lower_price_bracket =
+                        scale_buy_matches.value_of("lower_price_bracket").unwrap();
+                    let upper_price_bracket =
+                        scale_buy_matches.value_of("upper_price_bracket").unwrap();
+                    let interval = scale_buy_matches.value_of("interval").unwrap();
+
+                    let converted_total_order_size =
+                        total_order_size.parse::<f64>().unwrap() / interval.parse::<f64>().unwrap();
+
+                    println!(
                     "converted_total_order_size: {}, asset_symbol: {}, lower_price_bracket: {}, upper_price_bracket: {}, interval: {}",
                     converted_total_order_size,
                     asset_symbol,
@@ -877,20 +876,22 @@ async fn main() {
                     upper_price_bracket,
                     interval
                 );
-    
-                //Handle Scale Sell  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
-            }
-            ("sell", Some(scale_sell_matches)) => {
-                let total_order_size = scale_sell_matches.value_of("total_order_size").unwrap();
-                let interval = scale_sell_matches.value_of("interval").unwrap();
-                let asset_symbol = scale_sell_matches.value_of("asset_symbol").unwrap();
-                let lower_price_bracket = scale_sell_matches.value_of("lower_price_bracket").unwrap();
-                let upper_price_bracket = scale_sell_matches.value_of("upper_price_bracket").unwrap();
-    
-                let converted_total_order_size =
-                    total_order_size.parse::<f64>().unwrap() / interval.parse::<f64>().unwrap();
-    
-                println!(
+
+                    //Handle Scale Sell  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
+                }
+                ("sell", Some(scale_sell_matches)) => {
+                    let total_order_size = scale_sell_matches.value_of("total_order_size").unwrap();
+                    let interval = scale_sell_matches.value_of("interval").unwrap();
+                    let asset_symbol = scale_sell_matches.value_of("asset_symbol").unwrap();
+                    let lower_price_bracket =
+                        scale_sell_matches.value_of("lower_price_bracket").unwrap();
+                    let upper_price_bracket =
+                        scale_sell_matches.value_of("upper_price_bracket").unwrap();
+
+                    let converted_total_order_size =
+                        total_order_size.parse::<f64>().unwrap() / interval.parse::<f64>().unwrap();
+
+                    println!(
                     "converted_total_order_size: {}, asset_symbol: {}, lower_price_bracket: {}, upper_price_bracket: {}, interval: {}",
                     converted_total_order_size,
                     asset_symbol,
@@ -898,13 +899,12 @@ async fn main() {
                     upper_price_bracket,
                     interval
                 );
+                }
+
+                _ => {
+                    println!("No matching pattern");
+                }
             }
-    
-            _ => {
-                println!("No matching pattern");
-            }
-        }
-    
         }
         ("twap", Some(twap_matches)) => {
             // twap buy <total order size> <asset symbol>  <time between interval in mins, number of intervals>
