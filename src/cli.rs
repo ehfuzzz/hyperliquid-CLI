@@ -620,25 +620,30 @@ pub fn cli() {
             );
 
             match tp_price {
-                tp_price if tp_price.trim_start_matches("+").ends_with("%") => {
-                    let numeric_part = &tp_price[1..tp_price.len() - 1];
+                tp_price if tp_price.ends_with("%") => {
+                    let numeric_part = &tp_price[0..tp_price.len() - 1];
                     let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
                     println!("Logic for handling +10% tp price: {}", converted_value);
                 }
-                tp_price if tp_price.starts_with("+$") => {
-                    let numeric_part = &tp_price[2..];
+                tp_price if tp_price.starts_with("$") => {
+                    let numeric_part = &tp_price[1..];
                     let converted_value = numeric_part.parse::<u32>().unwrap();
                     println!("Logic for handling +$300: {}", converted_value);
                 }
-                tp_price if tp_price.trim_start_matches("+").ends_with("%pnl") => {
-                    let numeric_part = &tp_price[1..tp_price.len() - 4];
+                tp_price if tp_price.ends_with("%pnl") => {
+                    let numeric_part = &tp_price[0..tp_price.len() - 4];
                     let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
                     println!("Logic for handling +10%pnl: {}", converted_value);
                 }
-                tp_price if tp_price.trim_start_matches("+").ends_with("pnl") => {
-                    let numeric_part = &tp_price[1..tp_price.len() - 3];
+                tp_price if tp_price.ends_with("pnl") => {
+                    let numeric_part = &tp_price[0..tp_price.len() - 3];
                     let converted_value = numeric_part.parse::<u32>().unwrap();
                     println!("Logic for handling +300pnl: {}", converted_value);
+                }
+
+                tp_price if validate_value(tp_price.to_string()).is_ok() => {
+
+                    println! ("Logic for handling + 100: {}", &tp_price );
                 }
 
                 _ => {
@@ -895,6 +900,16 @@ pub fn cli() {
                         intervals.get(0)
                     );
 
+                    let interval_minutes: f64 = intervals[0].parse().expect("Invalid Interval Value");
+                    let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
+
+                    let amount_asset = order_size/interval_range;
+                
+
+                    println! ("Buying {} {} at intervals of {} minutes ", amount_asset, asset, interval_minutes);
+                    
+
+
                     //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
                 }
                 ("sell", Some(twapsell_matches)) => {
@@ -910,6 +925,7 @@ pub fn cli() {
                         .split(",")
                         .collect();
 
+
                     println!(
                         "twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}",
                         order_size,
@@ -917,6 +933,15 @@ pub fn cli() {
                         intervals,
                         intervals.get(0)
                     );
+
+                    let interval_minutes: f64 = intervals[0].parse().expect("Invalid Internal Value");
+                    let interval_range: f64 = intervals[1].parse().expect("Invalid Interval Value");
+
+                    let amount_asset = order_size/interval_range;
+
+                    println! ("Selling {} {} at intervals of {} minutes", amount_asset, asset, interval_minutes);
+
+                    
                 }
                 _ => {
                     println!("No subcommand was used");
@@ -951,28 +976,31 @@ pub fn cli() {
                         .value_of("order_size")
                         .unwrap()
                         .parse::<f64>()
-                        .unwrap();
-                    let pair: Vec<&str> = buy_matches
-                        .value_of("pair")
-                        .unwrap()
-                        .split("/")
-                        .collect();
+                        .unwrap()/2.0;
+                    let pair: Vec<&str> =
+                        buy_matches.value_of("pair").unwrap().split("/").collect();
+
                     let limit_price = buy_matches.value_of("limit_price");
                     let stop_loss = buy_matches.value_of("stop_loss");
                     let take_profit = buy_matches.value_of("take_profit");
+                    let pair_one : String= pair[0].parse().expect("Expected a valid string literal");
+                    let pair_two: String = pair[1].parse().expect("Expected a valid string literal");
 
                     println!(
-                        "pair buy order size: {}, pair: {:?}, asset_1: {:?}, asset_2: {:?}",
+
+                        "Longing {} {} and shorting {} {}",
                         order_size,
-                        pair,
-                        pair.get(0),
-                        pair.get(1)
+                        pair_one,
+                        order_size,
+                        pair_two
+
+
                     );
 
                     if let Some(lp) = limit_price {
-                        println!("Limit price provided: {}", lp);
+                        println!("Entering at this : {} limit price", lp);
                     } else {
-                        println!(" The already set default limit price rules will be used");
+                        println!(" Entering at Market price");
                     }
                     if let Some(sl) = stop_loss {
                         println!("Stop loss provided: {}", sl);
@@ -992,28 +1020,28 @@ pub fn cli() {
                         .value_of("order_size")
                         .unwrap()
                         .parse::<f64>()
-                        .unwrap();
-                    let pair: Vec<&str> = sell_matches
-                        .value_of("pair")
-                        .unwrap()
-                        .split("/")
-                        .collect();
+                        .unwrap()/2.0;
+                    let pair: Vec<&str> =
+                        sell_matches.value_of("pair").unwrap().split("/").collect();
+
                     let limit_price = sell_matches.value_of("limit_price");
                     let stop_loss = sell_matches.value_of("stop_loss");
                     let take_profit = sell_matches.value_of("take_profit");
+                    let pair_one: String = pair[0].parse().expect("Expected a valid string literal");
+                    let pair_two: String = pair[1].parse().expect("Expected a valid string literal");
 
                     println!(
-                        "pair sell order size: {}, pair: {:?}, asset_1: {:?}, asset_2: {:?}",
+                        "Shorting {} {} and Longing {} {}",
                         order_size,
-                        pair,
-                        pair.get(0),
-                        pair.get(1)
+                        pair_one,
+                        order_size,
+                        pair_two
                     );
 
                     if let Some(lp) = limit_price {
-                        println!("Limit price provided: {}", lp);
+                        println!("Entering at this: {} market price", lp);
                     } else {
-                        println!(" The already set default limit price rules will be used");
+                        println!(" Entering at market price");
                     }
                     if let Some(sl) = stop_loss {
                         println!("Stop loss provided: {}", sl);
