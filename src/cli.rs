@@ -665,25 +665,29 @@ pub fn cli() {
 
             match sl_price {
                 sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
-                    let numeric_part = &sl_price[1..sl_price.len() - 1];
+                    let numeric_part = &sl_price[0..sl_price.len() - 1];
                     let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
                     println!("Logic for handling -10% sl price: {}", converted_value);
                 }
 
+                sl_price if validate_value(sl_price.to_string()).is_ok() => {
+                    println!("Logic for handling - 300: {}", &sl_price);
+                }
+
                 sl_price if sl_price.starts_with("-$") => {
-                    let numeric_part = &sl_price[2..];
+                    let numeric_part = &sl_price[1..];
                     let converted_value = numeric_part.parse::<u32>().unwrap();
                     println!("Logic for handling -$300: {}", converted_value);
                 }
 
                 sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
-                    let numeric_part = &sl_price[1..sl_price.len() - 4];
+                    let numeric_part = &sl_price[0..sl_price.len() - 4];
                     let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
                     println!("Logic for handling -10%pnl: {}", converted_value);
                 }
 
                 sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
-                    let numeric_part = &sl_price[1..sl_price.len() - 3];
+                    let numeric_part = &sl_price[0..sl_price.len() - 3];
                     let converted_value = numeric_part.parse::<u32>().unwrap();
                     println!("Logic for handling -300pnl: {}", converted_value);
                 }
