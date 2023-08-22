@@ -1,7 +1,3 @@
-mod cli;
-mod handlers;
-mod helpers;
-mod settings;
 use settings::Settings;
 
 #[tokio::main]

@@ -1,20 +1,14 @@
 //using version 2.33 not the latest one
-use clap::{ App, Arg };
+use clap::{App, Arg};
 use std::num::ParseFloatError;
 
 use crate::handlers::{
-    handle_cross_margin,
-    handle_isolated_margin,
-    handle_notional_value,
-    handle_risk_value,
+    handle_cross_margin, handle_isolated_margin, handle_notional_value, handle_risk_value,
 };
 use crate::helpers::{
-    validate_limit_price,
-    validate_sl_price,
-    validate_tp_price,
-    validate_value,
-    validate_value_size,
+    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
 };
+use crate::hyperliquid::HyperLiquid;
 
 pub fn cli() {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -538,69 +532,66 @@ pub fn cli() {
         )
         .get_matches();
 
+    let hyperliquid = HyperLiquid::new("account".to_string());
+
     match matches.subcommand() {
-        ("set", Some(set_matches)) =>
-            match set_matches.subcommand() {
-                ("ds", Some(ds_matches)) => {
-                    let size_type = ds_matches.value_of("size_type").unwrap();
-                    let value_size = ds_matches.value_of("value_size").unwrap();
+        ("set", Some(set_matches)) => match set_matches.subcommand() {
+            ("ds", Some(ds_matches)) => {
+                let size_type = ds_matches.value_of("size_type").unwrap();
+                let value_size = ds_matches.value_of("value_size").unwrap();
 
-                    let converted_value: Result<f64, ParseFloatError> = if
-                        value_size.ends_with('%')
-                    {
-                        value_size
-                            .trim_end_matches('%')
-                            .parse::<f64>()
-                            .map(|percent| percent / 100.0)
-                    } else {
-                        value_size.trim_start_matches('$').parse::<f64>()
-                    };
+                let converted_value: Result<f64, ParseFloatError> = if value_size.ends_with('%') {
+                    value_size
+                        .trim_end_matches('%')
+                        .parse::<f64>()
+                        .map(|percent| percent / 100.0)
+                } else {
+                    value_size.trim_start_matches('$').parse::<f64>()
+                };
 
-                    match size_type {
-                        "risk" =>
-                            match converted_value {
-                                Ok(value) => {
-                                    handle_risk_value(value);
-                                }
-                                Err(_) => {
-                                    println!("Invalid value format");
-                                }
-                            }
-                        "notional" =>
-                            match converted_value {
-                                Ok(value) => {
-                                    handle_notional_value(value);
-                                }
-                                Err(_) => {
-                                    println!("Invalid value format");
-                                }
-                            }
-                        _ => unreachable!(),
-                    }
-                }
-                ("dm", Some(dm_matches)) => {
-                    let margin_type = dm_matches.value_of("margin_type").unwrap();
-                    println!("Margin type: {}", margin_type);
-
-                    match margin_type {
-                        "i" => handle_isolated_margin(margin_type),
-                        "c" => handle_cross_margin(margin_type),
-                        _ => unreachable!(), // we should not get here because of the possible value checker
-                    }
-                }
-
-                ("da", Some(da_match)) => {
-                    let asset = da_match.value_of("asset").unwrap();
-                    println!("You have set {} as your default asset to be traded", asset)
-                }
-                ("dl", Some(dl_match)) => {
-                    let leverage = dl_match.value_of("amount").unwrap().parse::<f64>().unwrap();
-                    println!("You have set {} as your default leverage size", leverage);
-                }
-                _ => {
-                    println!("No subcommand was used");
+                match size_type {
+                    "risk" => match converted_value {
+                        Ok(value) => {
+                            handle_risk_value(value);
+                        }
+                        Err(_) => {
+                            println!("Invalid value format");
+                        }
+                    },
+                    "notional" => match converted_value {
+                        Ok(value) => {
+                            handle_notional_value(value);
+                        }
+                        Err(_) => {
+                            println!("Invalid value format");
+                        }
+                    },
+                    _ => unreachable!(),
                 }
             }
+            ("dm", Some(dm_matches)) => {
+                let margin_type = dm_matches.value_of("margin_type").unwrap();
+                println!("Margin type: {}", margin_type);
+
+                match margin_type {
+                    "i" => handle_isolated_margin(margin_type),
+                    "c" => handle_cross_margin(margin_type),
+                    _ => unreachable!(), // we should not get here because of the possible value checker
+                }
+            }
+
+            ("da", Some(da_match)) => {
+                let asset = da_match.value_of("asset").unwrap();
+                println!("You have set {} as your default asset to be traded", asset)
+            }
+            ("dl", Some(dl_match)) => {
+                let leverage = dl_match.value_of("amount").unwrap().parse::<f64>().unwrap();
+                println!("You have set {} as your default leverage size", leverage);
+            }
+            _ => {
+                println!("No subcommand was used");
+            }
+        },
 
         ("tp", Some(tp_matches)) => {
             let percentage_order = tp_matches.value_of("percentage_order").unwrap();
@@ -615,8 +606,7 @@ pub fn cli() {
             };
             println!(
                 "converted percentage order: {:?}, asset: {}",
-                converted_percentage_order,
-                asset
+                converted_percentage_order, asset
             );
 
             match tp_price {
@@ -642,8 +632,7 @@ pub fn cli() {
                 }
 
                 tp_price if validate_value(tp_price.to_string()).is_ok() => {
-
-                    println! ("Logic for handling + 100: {}", &tp_price );
+                    println!("Logic for handling + 100: {}", &tp_price);
                 }
 
                 _ => {
@@ -664,8 +653,7 @@ pub fn cli() {
             };
             println!(
                 "converted percentage order: {:?}, asset: {}",
-                converted_percentage_order,
-                asset
+                converted_percentage_order, asset
             );
 
             match sl_price {
@@ -748,6 +736,8 @@ pub fn cli() {
                 //Filled with the default size already set
                 println!("Filled with the default sl rules already specified")
             }
+
+            hyperliquid.handle_risk_value(value);
         }
 
         ("sell", Some(sell_matches)) => {
@@ -801,16 +791,13 @@ pub fn cli() {
                         .collect();
 
                     let asset = scale_buy_matches.value_of("asset").unwrap();
-                    let lower_price_bracket = scale_buy_matches
-                        .value_of("lower_price_bracket")
-                        .unwrap();
-                    let upper_price_bracket = scale_buy_matches
-                        .value_of("upper_price_bracket")
-                        .unwrap();
+                    let lower_price_bracket =
+                        scale_buy_matches.value_of("lower_price_bracket").unwrap();
+                    let upper_price_bracket =
+                        scale_buy_matches.value_of("upper_price_bracket").unwrap();
 
-                    let converted_total_order_size =
-                        total_order_size[0].parse::<f64>().unwrap() /
-                        total_order_size[1].parse::<f64>().unwrap();
+                    let converted_total_order_size = total_order_size[0].parse::<f64>().unwrap()
+                        / total_order_size[1].parse::<f64>().unwrap();
 
                     let interval = total_order_size[1].parse::<f64>().unwrap();
 
@@ -841,16 +828,13 @@ pub fn cli() {
                         .collect();
 
                     let asset = scale_sell_matches.value_of("asset").unwrap();
-                    let lower_price_bracket = scale_sell_matches
-                        .value_of("lower_price_bracket")
-                        .unwrap();
-                    let upper_price_bracket = scale_sell_matches
-                        .value_of("upper_price_bracket")
-                        .unwrap();
+                    let lower_price_bracket =
+                        scale_sell_matches.value_of("lower_price_bracket").unwrap();
+                    let upper_price_bracket =
+                        scale_sell_matches.value_of("upper_price_bracket").unwrap();
 
-                    let converted_total_order_size =
-                        total_order_size[0].parse::<f64>().unwrap() /
-                        total_order_size[1].parse::<f64>().unwrap();
+                    let converted_total_order_size = total_order_size[0].parse::<f64>().unwrap()
+                        / total_order_size[1].parse::<f64>().unwrap();
 
                     let interval = total_order_size[1].parse::<f64>().unwrap();
 
@@ -900,15 +884,16 @@ pub fn cli() {
                         intervals.get(0)
                     );
 
-                    let interval_minutes: f64 = intervals[0].parse().expect("Invalid Interval Value");
+                    let interval_minutes: f64 =
+                        intervals[0].parse().expect("Invalid Interval Value");
                     let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
 
-                    let amount_asset = order_size/interval_range;
-                
+                    let amount_asset = order_size / interval_range;
 
-                    println! ("Buying {} {} at intervals of {} minutes ", amount_asset, asset, interval_minutes);
-                    
-
+                    println!(
+                        "Buying {} {} at intervals of {} minutes ",
+                        amount_asset, asset, interval_minutes
+                    );
 
                     //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
                 }
@@ -925,7 +910,6 @@ pub fn cli() {
                         .split(",")
                         .collect();
 
-
                     println!(
                         "twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}",
                         order_size,
@@ -934,38 +918,41 @@ pub fn cli() {
                         intervals.get(0)
                     );
 
-                    let interval_minutes: f64 = intervals[0].parse().expect("Invalid Internal Value");
+                    let interval_minutes: f64 =
+                        intervals[0].parse().expect("Invalid Internal Value");
                     let interval_range: f64 = intervals[1].parse().expect("Invalid Interval Value");
 
-                    let amount_asset = order_size/interval_range;
+                    let amount_asset = order_size / interval_range;
 
-                    println! ("Selling {} {} at intervals of {} minutes", amount_asset, asset, interval_minutes);
-
-                    
+                    println!(
+                        "Selling {} {} at intervals of {} minutes",
+                        amount_asset, asset, interval_minutes
+                    );
                 }
                 _ => {
                     println!("No subcommand was used");
                 }
             }
         }
-        ("view", Some(view_matches)) =>
-            match view_matches.subcommand_name() {
-                Some("pnl") => {
-                    println!("Implement view pnl logic");
-                }
-                Some("wallet") => {
-                    println!("Implement view wallet balance logic");
-                }
-                Some("unfilled") => {
-                    println!("Implement view unfilled orders logic");
-                }
-                Some("open") => { println!("Implement view open positions logic") }
-                _ => {
-                    println!(
+        ("view", Some(view_matches)) => match view_matches.subcommand_name() {
+            Some("pnl") => {
+                println!("Implement view pnl logic");
+            }
+            Some("wallet") => {
+                println!("Implement view wallet balance logic");
+            }
+            Some("unfilled") => {
+                println!("Implement view unfilled orders logic");
+            }
+            Some("open") => {
+                println!("Implement view open positions logic")
+            }
+            _ => {
+                println!(
                         " Invalid command: expected commands: (view pnl, view wallet balance, view unfilled orders, view open positions"
                     );
-                }
             }
+        },
 
         ("pair", Some(pair_matches)) => {
             //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
@@ -976,25 +963,22 @@ pub fn cli() {
                         .value_of("order_size")
                         .unwrap()
                         .parse::<f64>()
-                        .unwrap()/2.0;
+                        .unwrap()
+                        / 2.0;
                     let pair: Vec<&str> =
                         buy_matches.value_of("pair").unwrap().split("/").collect();
 
                     let limit_price = buy_matches.value_of("limit_price");
                     let stop_loss = buy_matches.value_of("stop_loss");
                     let take_profit = buy_matches.value_of("take_profit");
-                    let pair_one : String= pair[0].parse().expect("Expected a valid string literal");
-                    let pair_two: String = pair[1].parse().expect("Expected a valid string literal");
+                    let pair_one: String =
+                        pair[0].parse().expect("Expected a valid string literal");
+                    let pair_two: String =
+                        pair[1].parse().expect("Expected a valid string literal");
 
                     println!(
-
                         "Longing {} {} and shorting {} {}",
-                        order_size,
-                        pair_one,
-                        order_size,
-                        pair_two
-
-
+                        order_size, pair_one, order_size, pair_two
                     );
 
                     if let Some(lp) = limit_price {
@@ -1020,22 +1004,22 @@ pub fn cli() {
                         .value_of("order_size")
                         .unwrap()
                         .parse::<f64>()
-                        .unwrap()/2.0;
+                        .unwrap()
+                        / 2.0;
                     let pair: Vec<&str> =
                         sell_matches.value_of("pair").unwrap().split("/").collect();
 
                     let limit_price = sell_matches.value_of("limit_price");
                     let stop_loss = sell_matches.value_of("stop_loss");
                     let take_profit = sell_matches.value_of("take_profit");
-                    let pair_one: String = pair[0].parse().expect("Expected a valid string literal");
-                    let pair_two: String = pair[1].parse().expect("Expected a valid string literal");
+                    let pair_one: String =
+                        pair[0].parse().expect("Expected a valid string literal");
+                    let pair_two: String =
+                        pair[1].parse().expect("Expected a valid string literal");
 
                     println!(
                         "Shorting {} {} and Longing {} {}",
-                        order_size,
-                        pair_one,
-                        order_size,
-                        pair_two
+                        order_size, pair_one, order_size, pair_two
                     );
 
                     if let Some(lp) = limit_price {
