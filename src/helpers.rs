@@ -19,7 +19,6 @@ pub fn validate_value_size(value: String) -> Result<(), String> {
 }
 
 pub fn validate_tp_price(value: String) -> Result<(), String> {
-    
     if value.ends_with("%") {
         if value.trim_end_matches("%").parse::<f64>().is_ok() {
             Ok(())
@@ -51,17 +50,15 @@ pub fn validate_tp_price(value: String) -> Result<(), String> {
             ))
         }
     } else {
-        if validate_value(value).is_err(){
+        if validate_value(value).is_err() {
             Err(String::from(
                 "Invalid format: Expected tp format: (+10%, +$300, +300pnl + 34%pnl",
             ))
-        }else{
+        } else {
             Ok(())
         }
     }
-
-    }
-
+}
 
 pub fn validate_sl_price(value: String) -> Result<(), String> {
     if value.starts_with("-") {
