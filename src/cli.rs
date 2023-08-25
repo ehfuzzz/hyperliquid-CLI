@@ -8,12 +8,12 @@ use crate::helpers::{
 };
 use crate::hyperliquid::meta_info::calculate_asset_to_id;
 use crate::hyperliquid::open_orders::{get_side_from_oid, get_sz_from_oid};
-use crate::hyperliquid::order::{build_sl_order, build_tp_order};
+use crate::hyperliquid::order::{build_sl_order, build_tp_order,place_order};
 use crate::hyperliquid::order_payload::GainOptions;
 use clap::{App, Arg};
 use std::num::ParseFloatError;
 
-pub fn cli() {
+pub async fn cli() {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -625,8 +625,9 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
+                    let response = place_order(_tp_payload).await;
 
-                    println!("Logic for handling +10% tp price");
+                    println!("Logic for handling +10% tp price: {:#?}", response);
                 }
                 tp_price if tp_price.starts_with("$") => {
                     let numeric_part: f64 = tp_price[1..].parse::<f64>().unwrap();
@@ -641,8 +642,8 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling +$300");
+                    let response = place_order(_tp_payload).await;
+                    println!("Logic for handling +$300: {:#?}", response);
                 }
                 tp_price if tp_price.ends_with("%pnl") => {
                     let numeric_part: f64 = tp_price[0..tp_price.len() - 4].parse::<f64>().unwrap();
@@ -657,8 +658,8 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling +10%pnl");
+                    let response = place_order(_tp_payload).await;
+                    println!("Logic for handling +10%pnl: {:#?}",response);
                 }
                 tp_price if tp_price.ends_with("pnl") => {
                     let numeric_part: f64 = tp_price[0..tp_price.len() - 3].parse::<f64>().unwrap();
@@ -673,8 +674,8 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling +300pnl");
+                    let response = place_order(_tp_payload).await;
+                    println!("Logic for handling +300pnl{:#?}",response);
                 }
 
                 tp_price if validate_value(tp_price.to_string()).is_ok() => {
@@ -690,8 +691,8 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling + 100");
+                    let response = place_order(_tp_payload).await;
+                    println!("Logic for handling + 100: {:#?}",response);
                 }
 
                 _ => {
@@ -721,7 +722,7 @@ pub fn cli() {
                     let numeric_part: f64 = sl_price[0..sl_price.len() - 1].parse::<f64>().unwrap();
                     let gain = GainOptions::PercentageGain(numeric_part);
                     let limit_px = "0";
-                    let _sl_payload = build_sl_order(
+                    let sl_payload = build_sl_order(
                         asset,
                         is_buy,
                         &limit_px,
@@ -730,15 +731,15 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling -10% tp price");
+                    let response = place_order(sl_payload).await;
+                    println!("Logic for handling -10% tp price: {:#?}",response);
                 }
 
                 sl_price if validate_value(sl_price.to_string()).is_ok() => {
                     let numeric_part: f64 = sl_price.parse::<f64>().unwrap();
                     let gain = GainOptions::DollarGain(numeric_part);
                     let limit_px = "0";
-                    let _sl_payload = build_sl_order(
+                    let sl_payload = build_sl_order(
                         asset,
                         is_buy,
                         &limit_px,
@@ -747,15 +748,15 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling -300");
+                    let response = place_order(sl_payload).await;
+                    println!("Logic for handling -300: {:#?}",response);
                 }
 
                 sl_price if sl_price.starts_with("-$") => {
                     let numeric_part: f64 = sl_price[1..].parse::<f64>().unwrap();
                     let gain = GainOptions::DollarGain(numeric_part);
                     let limit_px = "0";
-                    let _sl_payload = build_sl_order(
+                    let sl_payload = build_sl_order(
                         asset,
                         is_buy,
                         &limit_px,
@@ -764,15 +765,15 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling -$300");
+                    let response = place_order(sl_payload).await;
+                    println!("Logic for handling -$300: {:#?}",response);
                 }
 
                 sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
                     let numeric_part: f64 = sl_price[1..].parse::<f64>().unwrap();
                     let gain = GainOptions::PercentageGain(numeric_part);
                     let limit_px = "0";
-                    let _sl_payload = build_sl_order(
+                    let sl_payload = build_sl_order(
                         asset,
                         is_buy,
                         &limit_px,
@@ -781,15 +782,15 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling -$300");
+                    let response = place_order(sl_payload).await;
+                    println!("Logic for handling -$300: {:#?}",response);
                 }
 
                 sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
                     let numeric_part: f64 = sl_price[0..sl_price.len() - 3].parse::<f64>().unwrap();
                     let gain = GainOptions::DollarGain(numeric_part);
                     let limit_px = "0";
-                    let _sl_payload = build_sl_order(
+                    let sl_payload = build_sl_order(
                         asset,
                         is_buy,
                         &limit_px,
@@ -798,8 +799,8 @@ pub fn cli() {
                         &percentage_order,
                         gain,
                     );
-
-                    println!("Logic for handling +300pnl");
+                    let response = place_order(sl_payload).await;
+                    println!("Logic for handling +300pnl: {:#?}",response);
                 }
 
                 _ => {
