@@ -7,6 +7,9 @@ use crate::helpers::{
     validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
 };
 use crate::hyperliquid::meta_info::calculate_asset_to_id;
+use crate::hyperliquid::open_orders::{get_side_from_oid, get_sz_from_oid};
+use crate::hyperliquid::order::{build_sl_order, build_tp_order};
+use crate::hyperliquid::order_payload::GainOptions;
 use clap::{App, Arg};
 use std::num::ParseFloatError;
 
@@ -593,44 +596,102 @@ pub fn cli() {
 
         ("tp", Some(tp_matches)) => {
             let percentage_order = tp_matches.value_of("percentage_order").unwrap();
-            let asset = tp_matches.value_of("asset").unwrap();
-            let tp_price = tp_matches.value_of("tp_price").unwrap();
+            let percentage_order: f64 = percentage_order
+                .trim_end_matches("%")
+                .parse::<f64>()
+                .unwrap();
 
-            let converted_percentage_order: Result<f64, ParseFloatError> = {
-                percentage_order
-                    .trim_end_matches("%")
-                    .parse::<f64>()
-                    .map(|percent| percent / 100.0)
-            };
-            println!(
-                "converted percentage order: {:?}, asset: {}",
-                converted_percentage_order, asset
-            );
+            let asset = tp_matches.value_of("asset").unwrap();
+            let asset: u32 = calculate_asset_to_id(&asset);
+            let tp_price = tp_matches.value_of("tp_price").unwrap();
+            let oid = 1234567;
+            let sz: f64 = get_sz_from_oid(oid) * percentage_order / 100.0;
+            let sz: String = sz.to_string();
+            let reduce_only = false;
+            let is_buy: bool = get_side_from_oid(oid);
+            let percentage_order: String = percentage_order.to_string();
 
             match tp_price {
                 tp_price if tp_price.ends_with("%") => {
-                    let numeric_part = &tp_price[0..tp_price.len() - 1];
-                    let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
-                    println!("Logic for handling +10% tp price: {}", converted_value);
+                    let numeric_part: f64 = tp_price[0..tp_price.len() - 1].parse::<f64>().unwrap();
+                    let gain = GainOptions::PercentageGain(numeric_part);
+                    let limit_px = "0";
+                    let _tp_payload = build_tp_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling +10% tp price");
                 }
                 tp_price if tp_price.starts_with("$") => {
-                    let numeric_part = &tp_price[1..];
-                    let converted_value = numeric_part.parse::<u32>().unwrap();
-                    println!("Logic for handling +$300: {}", converted_value);
+                    let numeric_part: f64 = tp_price[1..].parse::<f64>().unwrap();
+                    let gain = GainOptions::DollarGain(numeric_part);
+                    let limit_px = "0";
+                    let _tp_payload = build_tp_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling +$300");
                 }
                 tp_price if tp_price.ends_with("%pnl") => {
-                    let numeric_part = &tp_price[0..tp_price.len() - 4];
-                    let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
-                    println!("Logic for handling +10%pnl: {}", converted_value);
+                    let numeric_part: f64 = tp_price[0..tp_price.len() - 4].parse::<f64>().unwrap();
+                    let gain = GainOptions::PercentageGain(numeric_part);
+                    let limit_px = "0";
+                    let _tp_payload = build_tp_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling +10%pnl");
                 }
                 tp_price if tp_price.ends_with("pnl") => {
-                    let numeric_part = &tp_price[0..tp_price.len() - 3];
-                    let converted_value = numeric_part.parse::<u32>().unwrap();
-                    println!("Logic for handling +300pnl: {}", converted_value);
+                    let numeric_part: f64 = tp_price[0..tp_price.len() - 3].parse::<f64>().unwrap();
+                    let gain = GainOptions::DollarGain(numeric_part);
+                    let limit_px = "0";
+                    let _tp_payload = build_tp_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling +300pnl");
                 }
 
                 tp_price if validate_value(tp_price.to_string()).is_ok() => {
-                    println!("Logic for handling + 100: {}", &tp_price);
+                    let numeric_part: f64 = tp_price.parse::<f64>().unwrap();
+                    let gain = GainOptions::DollarGain(numeric_part);
+                    let limit_px = "0";
+                    let _tp_payload = build_tp_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling + 100");
                 }
 
                 _ => {
@@ -640,47 +701,105 @@ pub fn cli() {
         }
         ("sl", Some(sl_matches)) => {
             let percentage_order = sl_matches.value_of("percentage_order").unwrap();
-            let asset = sl_matches.value_of("asset").unwrap();
-            let sl_price = sl_matches.value_of("sl_price").unwrap();
+            let percentage_order: f64 = percentage_order
+                .trim_end_matches("%")
+                .parse::<f64>()
+                .unwrap();
 
-            let converted_percentage_order: Result<f64, ParseFloatError> = {
-                percentage_order
-                    .trim_end_matches("%")
-                    .parse::<f64>()
-                    .map(|percent| percent / 100.0)
-            };
-            println!(
-                "converted percentage order: {:?}, asset: {}",
-                converted_percentage_order, asset
-            );
+            let asset = sl_matches.value_of("asset").unwrap();
+            let asset: u32 = calculate_asset_to_id(&asset);
+            let sl_price = sl_matches.value_of("sl_price").unwrap();
+            let oid = 1234567;
+            let sz: f64 = get_sz_from_oid(oid) * percentage_order / 100.0;
+            let sz: String = sz.to_string();
+            let reduce_only = false;
+            let is_buy: bool = get_side_from_oid(oid);
+            let percentage_order: String = percentage_order.to_string();
 
             match sl_price {
                 sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
-                    let numeric_part = &sl_price[0..sl_price.len() - 1];
-                    let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
-                    println!("Logic for handling -10% sl price: {}", converted_value);
+                    let numeric_part: f64 = sl_price[0..sl_price.len() - 1].parse::<f64>().unwrap();
+                    let gain = GainOptions::PercentageGain(numeric_part);
+                    let limit_px = "0";
+                    let _sl_payload = build_sl_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling -10% tp price");
                 }
 
                 sl_price if validate_value(sl_price.to_string()).is_ok() => {
-                    println!("Logic for handling - 300: {}", &sl_price);
+                    let numeric_part: f64 = sl_price.parse::<f64>().unwrap();
+                    let gain = GainOptions::DollarGain(numeric_part);
+                    let limit_px = "0";
+                    let _sl_payload = build_sl_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling -300");
                 }
 
                 sl_price if sl_price.starts_with("-$") => {
-                    let numeric_part = &sl_price[1..];
-                    let converted_value = numeric_part.parse::<u32>().unwrap();
-                    println!("Logic for handling -$300: {}", converted_value);
+                    let numeric_part: f64 = sl_price[1..].parse::<f64>().unwrap();
+                    let gain = GainOptions::DollarGain(numeric_part);
+                    let limit_px = "0";
+                    let _sl_payload = build_sl_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling -$300");
                 }
 
                 sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
-                    let numeric_part = &sl_price[0..sl_price.len() - 4];
-                    let converted_value = numeric_part.parse::<f64>().unwrap() / 100.0;
-                    println!("Logic for handling -10%pnl: {}", converted_value);
+                    let numeric_part: f64 = sl_price[1..].parse::<f64>().unwrap();
+                    let gain = GainOptions::PercentageGain(numeric_part);
+                    let limit_px = "0";
+                    let _sl_payload = build_sl_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling -$300");
                 }
 
                 sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
-                    let numeric_part = &sl_price[0..sl_price.len() - 3];
-                    let converted_value = numeric_part.parse::<u32>().unwrap();
-                    println!("Logic for handling -300pnl: {}", converted_value);
+                    let numeric_part: f64 = sl_price[0..sl_price.len() - 3].parse::<f64>().unwrap();
+                    let gain = GainOptions::DollarGain(numeric_part);
+                    let limit_px = "0";
+                    let _sl_payload = build_sl_order(
+                        asset,
+                        is_buy,
+                        &limit_px,
+                        &sz,
+                        reduce_only,
+                        &percentage_order,
+                        gain,
+                    );
+
+                    println!("Logic for handling +300pnl");
                 }
 
                 _ => {

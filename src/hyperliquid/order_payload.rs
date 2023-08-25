@@ -1,10 +1,10 @@
-use serde::{Serialize};
+use serde::Serialize;
 
 #[derive(Serialize, Debug)]
-pub struct OrderPayload{
-    pub type_ : String,
+pub struct OrderPayload {
+    pub type_: String,
     pub grouping: String,
-    pub orders : Vec<Orders>,
+    pub orders: Vec<Orders>,
 }
 impl OrderPayload {
     pub fn new() -> OrderPayload {
@@ -20,21 +20,20 @@ impl OrderPayload {
 }
 #[derive(Serialize, Debug)]
 pub struct Orders {
-   pub asset: Option<u32>,
-   pub isbuy: Option<bool>,
-   pub limitpx: Option<String>,
-   pub sz: Option<String>,
-   pub reduceonly: Option<bool>,
-   pub ordertype: Option<OrderType>
+    pub asset: Option<u32>,
+    pub isbuy: Option<bool>,
+    pub limitpx: Option<String>,
+    pub sz: Option<String>,
+    pub reduceonly: Option<bool>,
+    pub ordertype: Option<OrderType>,
 }
 #[derive(Serialize, Debug)]
-pub enum OrderType{
+pub enum OrderType {
     Limit(Limit),
-    Trigger(Trigger)
+    Trigger(Trigger),
 }
 
 impl Orders {
-
     pub fn new() -> Orders {
         Orders {
             asset: None,
@@ -67,22 +66,19 @@ impl Orders {
     pub fn set_order_type(&mut self, order_type: OrderType) {
         self.ordertype = Some(order_type);
     }
-
 }
 #[derive(Serialize, Debug)]
-pub struct Limit{
-    pub tif: String
+pub struct Limit {
+    pub tif: String,
 }
 #[derive(Serialize, Debug)]
 pub struct Trigger {
     pub tpsl: String,
     pub trigger_px: Option<f64>,
     pub is_market: Option<bool>,
-    
 }
 
 impl Trigger {
-
     pub fn new(trigger_type: &str) -> Trigger {
         Trigger {
             tpsl: String::from(trigger_type),
@@ -98,21 +94,18 @@ impl Trigger {
     pub fn set_is_market(&mut self, is_market: bool) {
         self.is_market = Some(is_market);
     }
-
-
 }
 #[derive(Serialize, Debug)]
-pub enum GainOptions{
+pub enum GainOptions {
     PercentageGain(f64),
     DollarGain(f64),
 }
 
-
 #[derive(Serialize, Debug)]
-pub struct RequestBody{
+pub struct RequestBody {
     #[serde(rename = "type")]
     pub action: OrderPayload,
     pub nonce: u64,
     pub signature: String,
-    pub vaultaddress:Option<String>
+    pub vaultaddress: Option<String>,
 }

@@ -1,16 +1,21 @@
-use reqwest::{Client};
-use crate::hyperliquid::order_payload::{OrderPayload, Orders, OrderType,Trigger, RequestBody, GainOptions, Limit, };
-use crate::hyperliquid::order_responses::{OrderResponse, OrderResponseData, OrderStatus, PlaceResponse, StatusOption};
+use crate::hyperliquid::order_payload::{
+    GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
+};
+use crate::hyperliquid::order_responses::PlaceResponse;
+use reqwest::Client;
 
-pub async fn place_order(order_payload: OrderPayload) -> Result<PlaceResponse, Box<dyn std::error::Error>> {
+pub async fn place_order(
+    order_payload: OrderPayload,
+) -> Result<PlaceResponse, Box<dyn std::error::Error>> {
     let client = Client::new();
-    let requestbody = RequestBody{
+    let requestbody = RequestBody {
         action: order_payload,
         nonce: 0,
         signature: String::from(""),
         vaultaddress: None,
     };
-    let json_body = serde_json::to_string(&requestbody).expect("Failed to serialize the request body");
+    let json_body =
+        serde_json::to_string(&requestbody).expect("Failed to serialize the request body");
     let resp = client
         .post("https://api.hyperliquid.xyz/exchange")
         .body(json_body)
@@ -22,9 +27,17 @@ pub async fn place_order(order_payload: OrderPayload) -> Result<PlaceResponse, B
     Ok(resp)
 }
 
-pub fn handle_tp_logic(percentage_order: &str, asset: u32, gain:GainOptions, is_buy: bool)-> Trigger{
+pub fn handle_tp_logic(
+    percentage_order: &str,
+    _asset: u32,
+    gain: GainOptions,
+    is_buy: bool,
+) -> Trigger {
     let mut trigger = Trigger::new("tp");
-    let percentage_order = percentage_order.trim_end_matches("%").parse::<f64>().unwrap();
+    let _percentage_order = percentage_order
+        .trim_end_matches("%")
+        .parse::<f64>()
+        .unwrap();
     let entry_price = 2000.0; // Example entry price
     let leverage = 50.0; // Leverage factor
 
@@ -37,9 +50,9 @@ pub fn handle_tp_logic(percentage_order: &str, asset: u32, gain:GainOptions, is_
                 entry_price - target_price_gain
             };
 
-            let actual_tp_price = target_price/leverage;
+            let actual_tp_price = target_price / leverage;
             actual_tp_price
-        },
+        }
         GainOptions::DollarGain(dollar) => {
             let target_price = if is_buy {
                 entry_price - dollar
@@ -50,7 +63,6 @@ pub fn handle_tp_logic(percentage_order: &str, asset: u32, gain:GainOptions, is_
             let actual_sl_price = target_price / leverage;
             actual_sl_price
         }
-
     };
 
     if (is_buy && actual_tp_price <= entry_price) || (!is_buy && actual_tp_price >= entry_price) {
@@ -59,24 +71,25 @@ pub fn handle_tp_logic(percentage_order: &str, asset: u32, gain:GainOptions, is_
 
     trigger.set_trigger_px(actual_tp_price);
     trigger.set_is_market(false);
-    
 
     trigger
-
-    }
+}
 
 pub fn handle_sl_logic(
     percentage_order: &str,
-    asset: u32,
+    _asset: u32,
     gain: GainOptions,
     is_buy: bool,
 ) -> Trigger {
     let mut trigger = Trigger::new("sl");
-    let percentage_order = percentage_order.trim_end_matches("%").parse::<f64>().unwrap();
+    let _percentage_order = percentage_order
+        .trim_end_matches("%")
+        .parse::<f64>()
+        .unwrap();
     let entry_price = 2000.0; // Example entry price
     let leverage = 50.0; // Leverage factor
 
-    let actual_sl_price = match gain{
+    let actual_sl_price = match gain {
         GainOptions::PercentageGain(percentage) => {
             let target_price_gain = entry_price * (percentage / 100.0);
             let target_price = if is_buy {
@@ -98,17 +111,14 @@ pub fn handle_sl_logic(
             let actual_sl_price = target_price / leverage;
             actual_sl_price
         }
-
     };
 
     if (is_buy && actual_sl_price >= entry_price) || (!is_buy && actual_sl_price <= entry_price) {
         panic!("SL price must be lower than entry price for longs and higher than entry price for shorts");
-
     }
 
     trigger.set_trigger_px(actual_sl_price);
     trigger.set_is_market(false);
-    
 
     trigger
 }
@@ -119,7 +129,6 @@ pub fn build_tp_order(
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
-    order_type: OrderType,
     percentage_order: &str,
     gain: GainOptions,
 ) -> OrderPayload {
@@ -142,7 +151,6 @@ pub fn build_sl_order(
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
-    order_type: OrderType,
     percentage_order: &str,
     gain: GainOptions,
 ) -> OrderPayload {
