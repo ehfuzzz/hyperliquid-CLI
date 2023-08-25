@@ -609,7 +609,7 @@ pub async fn cli() {
             let sz: String = sz.to_string();
             let reduce_only = false;
             let is_buy: bool = get_side_from_oid(oid);
-            let percentage_order: String = percentage_order.to_string();
+            
 
             match tp_price {
                 tp_price if tp_price.ends_with("%") => {
@@ -622,7 +622,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(_tp_payload).await;
@@ -639,7 +638,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(_tp_payload).await;
@@ -655,7 +653,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(_tp_payload).await;
@@ -671,7 +668,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(_tp_payload).await;
@@ -688,7 +684,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(_tp_payload).await;
@@ -715,7 +710,7 @@ pub async fn cli() {
             let sz: String = sz.to_string();
             let reduce_only = false;
             let is_buy: bool = get_side_from_oid(oid);
-            let percentage_order: String = percentage_order.to_string();
+            
 
             match sl_price {
                 sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
@@ -728,7 +723,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(sl_payload).await;
@@ -745,7 +739,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(sl_payload).await;
@@ -762,7 +755,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(sl_payload).await;
@@ -779,7 +771,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(sl_payload).await;
@@ -796,7 +787,6 @@ pub async fn cli() {
                         &limit_px,
                         &sz,
                         reduce_only,
-                        &percentage_order,
                         gain,
                     );
                     let response = place_order(sl_payload).await;

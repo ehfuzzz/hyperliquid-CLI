@@ -28,16 +28,10 @@ pub async fn place_order(
 }
 
 pub fn handle_tp_logic(
-    percentage_order: &str,
-    _asset: u32,
     gain: GainOptions,
     is_buy: bool,
 ) -> Trigger {
     let mut trigger = Trigger::new("tp");
-    let _percentage_order = percentage_order
-        .trim_end_matches("%")
-        .parse::<f64>()
-        .unwrap();
     let entry_price = 2000.0; // Example entry price
     let leverage = 50.0; // Leverage factor
 
@@ -76,16 +70,11 @@ pub fn handle_tp_logic(
 }
 
 pub fn handle_sl_logic(
-    percentage_order: &str,
-    _asset: u32,
     gain: GainOptions,
     is_buy: bool,
 ) -> Trigger {
     let mut trigger = Trigger::new("sl");
-    let _percentage_order = percentage_order
-        .trim_end_matches("%")
-        .parse::<f64>()
-        .unwrap();
+
     let entry_price = 2000.0; // Example entry price
     let leverage = 50.0; // Leverage factor
 
@@ -129,12 +118,11 @@ pub fn build_tp_order(
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
-    percentage_order: &str,
     gain: GainOptions,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut tp_order = Orders::new();
-    let trigger = handle_tp_logic(percentage_order, asset, gain, is_buy);
+    let trigger = handle_tp_logic( gain, is_buy);
     tp_order.set_asset(asset);
     tp_order.set_is_buy(is_buy);
     tp_order.set_limit_px(&limit_px);
@@ -151,12 +139,12 @@ pub fn build_sl_order(
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
-    percentage_order: &str,
+    
     gain: GainOptions,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut sl_order = Orders::new();
-    let trigger = handle_sl_logic(percentage_order, asset, gain, is_buy);
+    let trigger = handle_sl_logic( gain, is_buy);
     sl_order.set_asset(asset);
     sl_order.set_is_buy(is_buy);
     sl_order.set_limit_px(&limit_px);
