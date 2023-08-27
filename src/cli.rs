@@ -4,13 +4,13 @@ use crate::handlers::{
     handle_cross_margin, handle_isolated_margin, handle_notional_value, handle_risk_value,
 };
 use crate::helpers::{
-    build_tp_order, place_sl_order, place_tp_order, validate_limit_price, validate_sl_price,
-    validate_tp_price, validate_value, validate_value_size,
+    build_sl_order, build_tp_order, place_sl_order, place_tp_order, validate_limit_price,
+    validate_sl_price, validate_tp_price, validate_value, validate_value_size,
 };
 use crate::hyperliquid::meta_info::calculate_asset_to_id;
 use crate::hyperliquid::open_orders::{get_side_from_oid, get_sz_from_oid};
 
-use crate::hyperliquid::order::build_buy_order;
+use crate::hyperliquid::order::{build_buy_order, build_sell_order};
 use crate::hyperliquid::order_payload::{Limit, OrderType, Orders};
 use clap::{App, Arg};
 use std::num::ParseFloatError;
@@ -651,20 +651,17 @@ pub async fn cli() {
 
             // Inside your original function
             match sl_price {
-                sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
-                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
+                sl_price
+                    if sl_price.trim_start_matches("-").ends_with("%")
+                        || sl_price.starts_with("-$")
+                        || sl_price.trim_start_matches("-").ends_with("%pnl")
+                        || sl_price.trim_start_matches("-").ends_with("pnl") =>
+                {
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only, true).await;
                 }
                 sl_price if validate_value(sl_price.to_string()).is_ok() => {
-                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
-                }
-                sl_price if sl_price.starts_with("-$") => {
-                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
-                }
-                sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
-                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
-                }
-                sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
-                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only, false)
+                        .await;
                 }
                 _ => {
                     println!("No matching pattern");
@@ -687,6 +684,7 @@ pub async fn cli() {
             let is_buy = true;
 
             let mut tp_order: Option<Orders> = None;
+            let mut sl_order: Option<Orders> = None;
 
             buy_order.set_reduce_only(reduce_only);
             buy_order.set_is_buy(is_buy);
@@ -768,13 +766,44 @@ pub async fn cli() {
 
             if let Some(sl) = stop_loss {
                 let numeric_part = &sl.parse::<f64>().unwrap();
+                match sl {
+                    sl if sl.trim_start_matches("-").ends_with("%")
+                        || sl.starts_with("-$")
+                        || sl.trim_start_matches("-").ends_with("%pnl")
+                        || sl.trim_start_matches("-").ends_with("pnl") =>
+                    {
+                        sl_order = build_sl_order(
+                            buy_order.get_asset(),
+                            is_buy,
+                            &buy_order.get_limit_px(),
+                            sl,
+                            &buy_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    sl if validate_value(sl.to_string()).is_ok() => {
+                        sl_order = build_sl_order(
+                            buy_order.get_asset(),
+                            is_buy,
+                            &buy_order.get_limit_px(),
+                            sl,
+                            &buy_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    _ => {
+                        println!("No matching pattern");
+                    }
+                }
                 println!("Stop Loss: {}", numeric_part);
             } else {
                 //Filled with the default size already set
                 println!("No sell was provided");
             }
 
-            let buy_payload = build_buy_order(buy_order, tp_order, None);
+            let buy_payload = build_buy_order(buy_order, tp_order, sl_order);
             println!("Buy payload Confirmation: {:#?}", buy_payload);
         }
 
@@ -788,6 +817,10 @@ pub async fn cli() {
             let mut sell_order = Orders::new();
             let limit: Limit = Limit::new();
             let reduce_only = false;
+            let is_buy = false;
+
+            let mut tp_order: Option<Orders> = None;
+            let mut sl_order: Option<Orders> = None;
 
             sell_order.set_reduce_only(reduce_only);
             sell_order.set_order_type(OrderType::Limit(limit));
@@ -825,17 +858,82 @@ pub async fn cli() {
 
             if let Some(sl) = stop_loss {
                 let numeric_part = &sl.parse::<f64>().unwrap();
+                match sl {
+                    sl if sl.trim_start_matches("-").ends_with("%")
+                        || sl.starts_with("-$")
+                        || sl.trim_start_matches("-").ends_with("%pnl")
+                        || sl.trim_start_matches("-").ends_with("pnl") =>
+                    {
+                        sl_order = build_sl_order(
+                            sell_order.get_asset(),
+                            is_buy,
+                            &sell_order.get_limit_px(),
+                            sl,
+                            &sell_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    sl if validate_value(sl.to_string()).is_ok() => {
+                        sl_order = build_sl_order(
+                            sell_order.get_asset(),
+                            is_buy,
+                            &sell_order.get_limit_px(),
+                            sl,
+                            &sell_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    _ => {
+                        println!("No matching pattern");
+                    }
+                }
                 println!("Stop loss set at: {}", numeric_part);
             } else {
-                println!("Filled with the default stop loss rules already specified");
+                println!("No SL was provided");
             }
 
             if let Some(tp) = take_profit {
                 let numeric_part = &tp.parse::<f64>().unwrap();
+                match tp {
+                    tp if tp.ends_with("%")
+                        || tp.starts_with("$")
+                        || tp.ends_with("%pnl")
+                        || tp.ends_with("pnl") =>
+                    {
+                        tp_order = build_tp_order(
+                            sell_order.get_asset(),
+                            is_buy,
+                            &sell_order.get_limit_px(),
+                            tp,
+                            &sell_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    tp if validate_value(tp.to_string()).is_ok() => {
+                        tp_order = build_tp_order(
+                            sell_order.get_asset(),
+                            is_buy,
+                            &sell_order.get_limit_px(),
+                            tp,
+                            &sell_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    _ => {
+                        println!("No matching pattern");
+                    }
+                }
                 println!("Take profit set at : {}", numeric_part);
             } else {
-                println!("Filled with the default stop los rules already specified")
+                println!("No TP was provided");
             }
+
+            let sell_payload = build_sell_order(sell_order, tp_order, sl_order);
+            println!("Sell payload Confirmation: {:#?}", sell_payload);
         }
 
         ("scale", Some(scale_matches)) => {

@@ -1,5 +1,5 @@
 use crate::hyperliquid::order::{
-    build_sl_order, build_sl_payload, build_tp_order_helper, build_tp_payload, place_order,
+    build_sl_order_helper, build_sl_payload, build_tp_order_helper, build_tp_payload, place_order,
 };
 use crate::hyperliquid::order_payload::GainOptions;
 use crate::hyperliquid::order_payload::{OrderPayload, Orders};
@@ -139,6 +139,7 @@ pub async fn place_sl_order(
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
+    gain_flag: bool,
 ) {
     let numeric_part: f64 = match sl_price {
         sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
@@ -161,7 +162,7 @@ pub async fn place_sl_order(
         GainOptions::DollarGain(numeric_part)
     };
 
-    let sl_payload = build_sl_payload(asset, is_buy, &limit_px, sz, reduce_only, gain);
+    let sl_payload = build_sl_payload(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
     let response = place_order(sl_payload).await;
 
     println!("Logic for handling sl price: {:#?}", response);
@@ -225,4 +226,39 @@ pub fn build_tp_order(
     let tp_order: Orders =
         build_tp_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
     Some(tp_order)
+}
+
+pub fn build_sl_order(
+    asset: u32,
+    is_buy: bool,
+    limit_px: &str,
+    sl_price: &str,
+    sz: &str,
+    reduce_only: bool,
+    gain_flag: bool,
+) -> Option<Orders> {
+    let numeric_part: f64 = match sl_price {
+        sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
+            sl_price[0..sl_price.len() - 1].parse().unwrap()
+        }
+        sl_price if sl_price.starts_with("-$") => sl_price[2..].parse().unwrap(),
+        sl_price if validate_value(sl_price.to_string()).is_ok() => sl_price.parse().unwrap(),
+        sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
+            sl_price[0..sl_price.len() - 4].parse().unwrap()
+        }
+        sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
+            sl_price[0..sl_price.len() - 3].parse().unwrap()
+        }
+        _ => unreachable!("Invalid sl price format"),
+    };
+
+    let gain = if sl_price.trim_start_matches("-").ends_with("%") {
+        GainOptions::PercentageGain(numeric_part)
+    } else {
+        GainOptions::DollarGain(numeric_part)
+    };
+
+    let sl_order: Orders =
+        build_sl_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
+    Some(sl_order)
 }

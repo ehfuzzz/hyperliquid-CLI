@@ -75,33 +75,42 @@ pub fn handle_tp_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trig
     trigger
 }
 
-pub fn handle_sl_logic(gain: GainOptions, is_buy: bool) -> Trigger {
+pub fn handle_sl_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trigger {
     let mut trigger = Trigger::new("sl");
 
     let entry_price = 2000.0; // Example entry price
     let leverage = 50.0; // Leverage factor
 
-    let actual_sl_price = match gain {
-        GainOptions::PercentageGain(percentage) => {
-            let target_price_gain = entry_price * (percentage / 100.0);
-            let target_price = if is_buy {
-                entry_price - target_price_gain
-            } else {
-                entry_price + target_price_gain
-            };
+    let actual_sl_price: f64 = if gain_flag {
+        match gain {
+            GainOptions::PercentageGain(percentage) => {
+                let target_price_gain = entry_price * (percentage / 100.0);
+                let target_price = if is_buy {
+                    entry_price - target_price_gain
+                } else {
+                    entry_price + target_price_gain
+                };
 
-            let actual_sl_price = target_price / leverage;
-            actual_sl_price
+                target_price / leverage
+            }
+            GainOptions::DollarGain(dollar) => {
+                let target_price = if is_buy {
+                    entry_price + dollar
+                } else {
+                    entry_price - dollar
+                };
+
+                target_price / leverage
+            }
         }
-        GainOptions::DollarGain(dollar) => {
-            let target_price = if is_buy {
-                entry_price - dollar
-            } else {
-                entry_price + dollar
-            };
-
-            let actual_sl_price = target_price / leverage;
-            actual_sl_price
+    } else {
+        match gain {
+            GainOptions::DollarGain(dollar) => {
+                dollar // Use the dollar directly if gain_flag is false
+            }
+            _ => {
+                panic!("Invalid gain option when gain_flag is false");
+            }
         }
     };
 
@@ -144,10 +153,11 @@ pub fn build_sl_payload(
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
+    gain_flag: bool,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut sl_order = Orders::new();
-    let trigger = handle_sl_logic(gain, is_buy);
+    let trigger = handle_sl_logic(gain, is_buy, gain_flag);
     sl_order.set_asset(asset);
     sl_order.set_is_buy(is_buy);
     sl_order.set_limit_px(&limit_px);
@@ -178,17 +188,17 @@ pub fn build_tp_order_helper(
     tp_order
 }
 
-pub fn build_sl_order(
+pub fn build_sl_order_helper(
     asset: u32,
     is_buy: bool,
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
-
     gain: GainOptions,
+    gain_flag: bool,
 ) -> Orders {
     let mut sl_order = Orders::new();
-    let trigger = handle_sl_logic(gain, is_buy);
+    let trigger = handle_sl_logic(gain, is_buy, gain_flag);
     sl_order.set_asset(asset);
     sl_order.set_is_buy(is_buy);
     sl_order.set_limit_px(&limit_px);
