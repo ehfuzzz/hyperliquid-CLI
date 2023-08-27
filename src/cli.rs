@@ -4,12 +4,12 @@ use crate::handlers::{
     handle_cross_margin, handle_isolated_margin, handle_notional_value, handle_risk_value,
 };
 use crate::helpers::{
-    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
+    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size, handle_sl_price, handle_tp_price
 };
 use crate::hyperliquid::meta_info::calculate_asset_to_id;
 use crate::hyperliquid::open_orders::{get_side_from_oid, get_sz_from_oid};
-use crate::hyperliquid::order::{build_sl_order, build_tp_order,place_order};
-use crate::hyperliquid::order_payload::GainOptions;
+
+use crate::hyperliquid::order_payload::{ Limit, Orders, OrderType};
 use clap::{App, Arg};
 use std::num::ParseFloatError;
 
@@ -610,90 +610,28 @@ pub async fn cli() {
             let reduce_only = false;
             let is_buy: bool = get_side_from_oid(oid);
             
-
+            // Inside your original function
             match tp_price {
                 tp_price if tp_price.ends_with("%") => {
-                    let numeric_part: f64 = tp_price[0..tp_price.len() - 1].parse::<f64>().unwrap();
-                    let gain = GainOptions::PercentageGain(numeric_part);
-                    let limit_px = "0";
-                    let _tp_payload = build_tp_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(_tp_payload).await;
-
-                    println!("Logic for handling +10% tp price: {:#?}", response);
+                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
                 }
                 tp_price if tp_price.starts_with("$") => {
-                    let numeric_part: f64 = tp_price[1..].parse::<f64>().unwrap();
-                    let gain = GainOptions::DollarGain(numeric_part);
-                    let limit_px = "0";
-                    let _tp_payload = build_tp_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(_tp_payload).await;
-                    println!("Logic for handling +$300: {:#?}", response);
+                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
                 }
                 tp_price if tp_price.ends_with("%pnl") => {
-                    let numeric_part: f64 = tp_price[0..tp_price.len() - 4].parse::<f64>().unwrap();
-                    let gain = GainOptions::PercentageGain(numeric_part);
-                    let limit_px = "0";
-                    let _tp_payload = build_tp_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(_tp_payload).await;
-                    println!("Logic for handling +10%pnl: {:#?}",response);
+                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
                 }
                 tp_price if tp_price.ends_with("pnl") => {
-                    let numeric_part: f64 = tp_price[0..tp_price.len() - 3].parse::<f64>().unwrap();
-                    let gain = GainOptions::DollarGain(numeric_part);
-                    let limit_px = "0";
-                    let _tp_payload = build_tp_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(_tp_payload).await;
-                    println!("Logic for handling +300pnl{:#?}",response);
+                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
                 }
-
                 tp_price if validate_value(tp_price.to_string()).is_ok() => {
-                    let numeric_part: f64 = tp_price.parse::<f64>().unwrap();
-                    let gain = GainOptions::DollarGain(numeric_part);
-                    let limit_px = "0";
-                    let _tp_payload = build_tp_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(_tp_payload).await;
-                    println!("Logic for handling + 100: {:#?}",response);
+                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
                 }
-
                 _ => {
                     println!("No matching pattern");
                 }
             }
+            
         }
         ("sl", Some(sl_matches)) => {
             let percentage_order = sl_matches.value_of("percentage_order").unwrap();
@@ -711,92 +649,29 @@ pub async fn cli() {
             let reduce_only = false;
             let is_buy: bool = get_side_from_oid(oid);
             
-
+            
+            // Inside your original function
             match sl_price {
                 sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
-                    let numeric_part: f64 = sl_price[0..sl_price.len() - 1].parse::<f64>().unwrap();
-                    let gain = GainOptions::PercentageGain(numeric_part);
-                    let limit_px = "0";
-                    let sl_payload = build_sl_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(sl_payload).await;
-                    println!("Logic for handling -10% tp price: {:#?}",response);
+                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
                 }
-
                 sl_price if validate_value(sl_price.to_string()).is_ok() => {
-                    let numeric_part: f64 = sl_price.parse::<f64>().unwrap();
-                    let gain = GainOptions::DollarGain(numeric_part);
-                    let limit_px = "0";
-                    let sl_payload = build_sl_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(sl_payload).await;
-                    println!("Logic for handling -300: {:#?}",response);
+                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
                 }
-
                 sl_price if sl_price.starts_with("-$") => {
-                    let numeric_part: f64 = sl_price[1..].parse::<f64>().unwrap();
-                    let gain = GainOptions::DollarGain(numeric_part);
-                    let limit_px = "0";
-                    let sl_payload = build_sl_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(sl_payload).await;
-                    println!("Logic for handling -$300: {:#?}",response);
+                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
                 }
-
                 sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
-                    let numeric_part: f64 = sl_price[1..].parse::<f64>().unwrap();
-                    let gain = GainOptions::PercentageGain(numeric_part);
-                    let limit_px = "0";
-                    let sl_payload = build_sl_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(sl_payload).await;
-                    println!("Logic for handling -$300: {:#?}",response);
+                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
                 }
-
                 sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
-                    let numeric_part: f64 = sl_price[0..sl_price.len() - 3].parse::<f64>().unwrap();
-                    let gain = GainOptions::DollarGain(numeric_part);
-                    let limit_px = "0";
-                    let sl_payload = build_sl_order(
-                        asset,
-                        is_buy,
-                        &limit_px,
-                        &sz,
-                        reduce_only,
-                        gain,
-                    );
-                    let response = place_order(sl_payload).await;
-                    println!("Logic for handling +300pnl: {:#?}",response);
+                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
                 }
-
                 _ => {
                     println!("No matching pattern");
                 }
             }
+            
 
             //Handle Scale Buy  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
         }
@@ -808,25 +683,44 @@ pub async fn cli() {
             let take_profit = buy_matches.value_of("take_profit");
             let stop_loss = buy_matches.value_of("stop_loss");
 
+            let mut buy_order = Orders::new();
+            let limit: Limit = Limit::new();
+            let reduce_only = false;
+
+            buy_order.set_reduce_only(reduce_only);
+            buy_order.set_order_type(OrderType::Limit(limit));            
+
+
             if let Some(size) = buy_size {
                 //preprocess the String to get the numeric size
                 let numeric_part = &size[1..].parse::<f64>().unwrap();
+                buy_order.set_sz(&numeric_part.to_string());
                 println!("Buy size: {}", numeric_part);
             } else {
                 //Filled with the default size already set
+                let default_size = 100;
+                buy_order.set_sz(&default_size.to_string());
                 println!("Filled with the default size already specified");
             }
             if let Some(symbol) = asset {
+                let asset = calculate_asset_to_id(&symbol);
+                buy_order.set_asset(asset);
                 println!("Asset symbol: {}", symbol);
             } else {
                 //Filled with the default size already set
+                let default_asset = "ETH";
+                let default_asset = calculate_asset_to_id(default_asset);
+                buy_order.set_asset(default_asset);
                 println!("Filled with the default symbol already specified");
             }
             if let Some(price) = limit_price {
                 let numeric_part = &price[1..].parse::<f64>().unwrap();
+                buy_order.set_limit_px(&numeric_part.to_string());
                 println!("Limit price: {}", numeric_part);
             } else {
                 //Filled with the default size already set
+                let market_price = 1990;
+                buy_order.set_limit_px(&market_price.to_string());
                 println!("Filled with the default limit rules already specified");
             }
             if let Some(tp) = take_profit {
@@ -834,7 +728,7 @@ pub async fn cli() {
                 println!("Take profit: {}", numeric_part);
             } else {
                 //Filled with the default size already set
-                println!("Filled with the default tp rules already specified");
+                println!("No TP was provided");
             }
 
             if let Some(sl) = stop_loss {
@@ -842,7 +736,7 @@ pub async fn cli() {
                 println!("Stop Loss: {}", numeric_part);
             } else {
                 //Filled with the default size already set
-                println!("Filled with the default sl rules already specified")
+                println!("No sell was provided");
             }
         }
 
@@ -853,22 +747,42 @@ pub async fn cli() {
             let take_profit = sell_matches.value_of("take_profit");
             let stop_loss = sell_matches.value_of("stop_loss");
 
+            let mut sell_order = Orders::new();
+            let limit: Limit = Limit::new();
+            let reduce_only = false;
+
+            sell_order.set_reduce_only(reduce_only);
+            sell_order.set_order_type(OrderType::Limit(limit));            
+
+
             if let Some(size) = sell_size {
                 let numeric_part = &size[1..].parse::<f64>().unwrap();
+                sell_order.set_sz(&numeric_part.to_string());
                 println!("Sell size: {}", numeric_part);
             } else {
+                let default_size = 100;
+                sell_order.set_sz(&default_size.to_string());                
                 println!("Fill with the default size already specified");
             }
 
             if let Some(symbol) = asset {
+                let asset = calculate_asset_to_id(&symbol);
+                sell_order.set_asset(asset);                
                 println!("Asset symbol: {}", symbol);
             } else {
+                let default_asset = "ETH";
+                let default_asset = calculate_asset_to_id(default_asset);
+                sell_order.set_asset(default_asset);                
                 println!("FIlled with the default asset already specified");
             }
             if let Some(price) = limit_price {
                 let numeric_part = &price[1..].parse::<f64>().unwrap();
+                sell_order.set_limit_px(&numeric_part.to_string());
                 println!(" Limit price: {}", numeric_part);
             } else {
+                //Filled with the default size already set
+                let market_price = 1990;
+                sell_order.set_limit_px(&market_price.to_string());                
                 println!("FIlled with the default limit price already specified");
             }
 

@@ -71,6 +71,14 @@ impl Orders {
 pub struct Limit {
     pub tif: String,
 }
+impl Limit{
+    pub fn new() -> Limit {
+        Limit {
+            tif: String::from("GTC"),
+        }
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub struct Trigger {
     pub tpsl: String,

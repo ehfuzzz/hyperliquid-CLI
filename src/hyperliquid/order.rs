@@ -1,5 +1,5 @@
 use crate::hyperliquid::order_payload::{
-    GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
+    GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger
 };
 use crate::hyperliquid::order_responses::PlaceResponse;
 use reqwest::Client;
@@ -152,5 +152,43 @@ pub fn build_sl_order(
     sl_order.set_reduce_only(reduce_only);
     sl_order.set_order_type(OrderType::Trigger(trigger));
     order_payload.add_order(sl_order);
+    order_payload
+}
+
+pub fn build_buy_order(
+    buy_order: Orders,
+    tp_order: Option<Orders>,
+    sl_order: Option<Orders>,
+) -> OrderPayload {
+    let mut order_payload = OrderPayload::new();
+    order_payload.add_order(buy_order);
+
+    if let Some(tp_order) = tp_order {
+        order_payload.add_order(tp_order);
+    }
+
+    if let Some(sl_order) = sl_order {
+        order_payload.add_order(sl_order);
+    }
+
+    order_payload
+}
+
+pub fn build_sell_order(
+    sell_order: Orders,
+    tp_order: Option<Orders>,
+    sl_order: Option<Orders>,
+) -> OrderPayload {
+    let mut order_payload = OrderPayload::new();
+    order_payload.add_order(sell_order);
+
+    if let Some(tp_order) = tp_order {
+        order_payload.add_order(tp_order);
+    }
+
+    if let Some(sl_order) = sl_order {
+        order_payload.add_order(sl_order);
+    }
+
     order_payload
 }
