@@ -4,12 +4,14 @@ use crate::handlers::{
     handle_cross_margin, handle_isolated_margin, handle_notional_value, handle_risk_value,
 };
 use crate::helpers::{
-    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size, handle_sl_price, handle_tp_price
+    build_tp_order, place_sl_order, place_tp_order, validate_limit_price, validate_sl_price,
+    validate_tp_price, validate_value, validate_value_size,
 };
 use crate::hyperliquid::meta_info::calculate_asset_to_id;
 use crate::hyperliquid::open_orders::{get_side_from_oid, get_sz_from_oid};
 
-use crate::hyperliquid::order_payload::{ Limit, Orders, OrderType};
+use crate::hyperliquid::order::build_buy_order;
+use crate::hyperliquid::order_payload::{Limit, OrderType, Orders};
 use clap::{App, Arg};
 use std::num::ParseFloatError;
 
@@ -609,29 +611,26 @@ pub async fn cli() {
             let sz: String = sz.to_string();
             let reduce_only = false;
             let is_buy: bool = get_side_from_oid(oid);
-            
-            // Inside your original function
+
+            let limit_px = "1900";
+
             match tp_price {
-                tp_price if tp_price.ends_with("%") => {
-                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
-                }
-                tp_price if tp_price.starts_with("$") => {
-                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
-                }
-                tp_price if tp_price.ends_with("%pnl") => {
-                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
-                }
-                tp_price if tp_price.ends_with("pnl") => {
-                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
+                tp_price
+                    if tp_price.ends_with("%")
+                        || tp_price.starts_with("$")
+                        || tp_price.ends_with("%pnl")
+                        || tp_price.ends_with("pnl") =>
+                {
+                    place_tp_order(asset, is_buy, tp_price, limit_px, &sz, reduce_only, true).await;
                 }
                 tp_price if validate_value(tp_price.to_string()).is_ok() => {
-                    handle_tp_price(asset, is_buy, tp_price, &sz, reduce_only).await;
+                    place_tp_order(asset, is_buy, tp_price, limit_px, &sz, reduce_only, false)
+                        .await;
                 }
                 _ => {
                     println!("No matching pattern");
                 }
             }
-            
         }
         ("sl", Some(sl_matches)) => {
             let percentage_order = sl_matches.value_of("percentage_order").unwrap();
@@ -648,30 +647,29 @@ pub async fn cli() {
             let sz: String = sz.to_string();
             let reduce_only = false;
             let is_buy: bool = get_side_from_oid(oid);
-            
-            
+            let limit_px = "1900";
+
             // Inside your original function
             match sl_price {
                 sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
-                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
                 }
                 sl_price if validate_value(sl_price.to_string()).is_ok() => {
-                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
                 }
                 sl_price if sl_price.starts_with("-$") => {
-                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
                 }
                 sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
-                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
                 }
                 sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
-                    handle_sl_price(asset, is_buy, sl_price, &sz, reduce_only).await;
+                    place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only).await;
                 }
                 _ => {
                     println!("No matching pattern");
                 }
             }
-            
 
             //Handle Scale Buy  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
         }
@@ -686,10 +684,13 @@ pub async fn cli() {
             let mut buy_order = Orders::new();
             let limit: Limit = Limit::new();
             let reduce_only = false;
+            let is_buy = true;
+
+            let mut tp_order: Option<Orders> = None;
 
             buy_order.set_reduce_only(reduce_only);
-            buy_order.set_order_type(OrderType::Limit(limit));            
-
+            buy_order.set_is_buy(is_buy);
+            buy_order.set_order_type(OrderType::Limit(limit));
 
             if let Some(size) = buy_size {
                 //preprocess the String to get the numeric size
@@ -724,6 +725,40 @@ pub async fn cli() {
                 println!("Filled with the default limit rules already specified");
             }
             if let Some(tp) = take_profit {
+                // here we need to build a tp order different from the buy order
+
+                match tp {
+                    tp if tp.ends_with("%")
+                        || tp.starts_with("$")
+                        || tp.ends_with("%pnl")
+                        || tp.ends_with("pnl") =>
+                    {
+                        tp_order = build_tp_order(
+                            buy_order.get_asset(),
+                            is_buy,
+                            &buy_order.get_limit_px(),
+                            tp,
+                            &buy_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    tp if validate_value(tp.to_string()).is_ok() => {
+                        tp_order = build_tp_order(
+                            buy_order.get_asset(),
+                            is_buy,
+                            &buy_order.get_limit_px(),
+                            tp,
+                            &buy_order.get_sz(),
+                            reduce_only,
+                            false,
+                        );
+                    }
+                    _ => {
+                        println!("No matching pattern");
+                    }
+                }
+
                 let numeric_part = &tp.parse::<f64>().unwrap();
                 println!("Take profit: {}", numeric_part);
             } else {
@@ -738,6 +773,9 @@ pub async fn cli() {
                 //Filled with the default size already set
                 println!("No sell was provided");
             }
+
+            let buy_payload = build_buy_order(buy_order, tp_order, None);
+            println!("Buy payload Confirmation: {:#?}", buy_payload);
         }
 
         ("sell", Some(sell_matches)) => {
@@ -752,8 +790,7 @@ pub async fn cli() {
             let reduce_only = false;
 
             sell_order.set_reduce_only(reduce_only);
-            sell_order.set_order_type(OrderType::Limit(limit));            
-
+            sell_order.set_order_type(OrderType::Limit(limit));
 
             if let Some(size) = sell_size {
                 let numeric_part = &size[1..].parse::<f64>().unwrap();
@@ -761,18 +798,18 @@ pub async fn cli() {
                 println!("Sell size: {}", numeric_part);
             } else {
                 let default_size = 100;
-                sell_order.set_sz(&default_size.to_string());                
+                sell_order.set_sz(&default_size.to_string());
                 println!("Fill with the default size already specified");
             }
 
             if let Some(symbol) = asset {
                 let asset = calculate_asset_to_id(&symbol);
-                sell_order.set_asset(asset);                
+                sell_order.set_asset(asset);
                 println!("Asset symbol: {}", symbol);
             } else {
                 let default_asset = "ETH";
                 let default_asset = calculate_asset_to_id(default_asset);
-                sell_order.set_asset(default_asset);                
+                sell_order.set_asset(default_asset);
                 println!("FIlled with the default asset already specified");
             }
             if let Some(price) = limit_price {
@@ -782,7 +819,7 @@ pub async fn cli() {
             } else {
                 //Filled with the default size already set
                 let market_price = 1990;
-                sell_order.set_limit_px(&market_price.to_string());                
+                sell_order.set_limit_px(&market_price.to_string());
                 println!("FIlled with the default limit price already specified");
             }
 

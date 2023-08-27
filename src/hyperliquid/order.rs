@@ -1,5 +1,5 @@
 use crate::hyperliquid::order_payload::{
-    GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger
+    GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
 };
 use crate::hyperliquid::order_responses::PlaceResponse;
 use reqwest::Client;
@@ -27,35 +27,41 @@ pub async fn place_order(
     Ok(resp)
 }
 
-pub fn handle_tp_logic(
-    gain: GainOptions,
-    is_buy: bool,
-) -> Trigger {
+pub fn handle_tp_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trigger {
     let mut trigger = Trigger::new("tp");
     let entry_price = 2000.0; // Example entry price
     let leverage = 50.0; // Leverage factor
 
-    let actual_tp_price = match gain {
-        GainOptions::PercentageGain(percentage) => {
-            let target_price_gain = entry_price * (percentage / 100.0);
-            let target_price = if is_buy {
-                entry_price + target_price_gain
-            } else {
-                entry_price - target_price_gain
-            };
+    let actual_tp_price = if gain_flag {
+        match gain {
+            GainOptions::PercentageGain(percentage) => {
+                let target_price_gain = entry_price * (percentage / 100.0);
+                let target_price = if is_buy {
+                    entry_price + target_price_gain
+                } else {
+                    entry_price - target_price_gain
+                };
 
-            let actual_tp_price = target_price / leverage;
-            actual_tp_price
+                target_price / leverage
+            }
+            GainOptions::DollarGain(dollar) => {
+                let target_price = if is_buy {
+                    entry_price - dollar
+                } else {
+                    entry_price + dollar
+                };
+
+                target_price / leverage
+            }
         }
-        GainOptions::DollarGain(dollar) => {
-            let target_price = if is_buy {
-                entry_price - dollar
-            } else {
-                entry_price + dollar
-            };
-
-            let actual_sl_price = target_price / leverage;
-            actual_sl_price
+    } else {
+        match gain {
+            GainOptions::DollarGain(dollar) => {
+                dollar // Use the dollar directly if gain_flag is false
+            }
+            _ => {
+                panic!("Invalid gain option when gain_flag is false");
+            }
         }
     };
 
@@ -69,10 +75,7 @@ pub fn handle_tp_logic(
     trigger
 }
 
-pub fn handle_sl_logic(
-    gain: GainOptions,
-    is_buy: bool,
-) -> Trigger {
+pub fn handle_sl_logic(gain: GainOptions, is_buy: bool) -> Trigger {
     let mut trigger = Trigger::new("sl");
 
     let entry_price = 2000.0; // Example entry price
@@ -112,17 +115,18 @@ pub fn handle_sl_logic(
     trigger
 }
 
-pub fn build_tp_order(
+pub fn build_tp_payload(
     asset: u32,
     is_buy: bool,
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
+    gain_flag: bool,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut tp_order = Orders::new();
-    let trigger = handle_tp_logic( gain, is_buy);
+    let trigger = handle_tp_logic(gain, is_buy, gain_flag);
     tp_order.set_asset(asset);
     tp_order.set_is_buy(is_buy);
     tp_order.set_limit_px(&limit_px);
@@ -133,18 +137,17 @@ pub fn build_tp_order(
     order_payload
 }
 
-pub fn build_sl_order(
+pub fn build_sl_payload(
     asset: u32,
     is_buy: bool,
     limit_px: &str,
     sz: &str,
     reduce_only: bool,
-    
     gain: GainOptions,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut sl_order = Orders::new();
-    let trigger = handle_sl_logic( gain, is_buy);
+    let trigger = handle_sl_logic(gain, is_buy);
     sl_order.set_asset(asset);
     sl_order.set_is_buy(is_buy);
     sl_order.set_limit_px(&limit_px);
@@ -153,6 +156,46 @@ pub fn build_sl_order(
     sl_order.set_order_type(OrderType::Trigger(trigger));
     order_payload.add_order(sl_order);
     order_payload
+}
+
+pub fn build_tp_order_helper(
+    asset: u32,
+    is_buy: bool,
+    limit_px: &str,
+    sz: &str,
+    reduce_only: bool,
+    gain: GainOptions,
+    gain_flag: bool,
+) -> Orders {
+    let mut tp_order = Orders::new();
+    let trigger = handle_tp_logic(gain, is_buy, gain_flag);
+    tp_order.set_asset(asset);
+    tp_order.set_is_buy(is_buy);
+    tp_order.set_limit_px(&limit_px);
+    tp_order.set_sz(&sz);
+    tp_order.set_reduce_only(reduce_only);
+    tp_order.set_order_type(OrderType::Trigger(trigger));
+    tp_order
+}
+
+pub fn build_sl_order(
+    asset: u32,
+    is_buy: bool,
+    limit_px: &str,
+    sz: &str,
+    reduce_only: bool,
+
+    gain: GainOptions,
+) -> Orders {
+    let mut sl_order = Orders::new();
+    let trigger = handle_sl_logic(gain, is_buy);
+    sl_order.set_asset(asset);
+    sl_order.set_is_buy(is_buy);
+    sl_order.set_limit_px(&limit_px);
+    sl_order.set_sz(&sz);
+    sl_order.set_reduce_only(reduce_only);
+    sl_order.set_order_type(OrderType::Trigger(trigger));
+    sl_order
 }
 
 pub fn build_buy_order(

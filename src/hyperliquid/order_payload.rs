@@ -47,6 +47,9 @@ impl Orders {
     pub fn set_asset(&mut self, asset: u32) {
         self.asset = Some(asset);
     }
+    pub fn get_asset(&self) -> u32 {
+        self.asset.unwrap()
+    }
 
     pub fn set_is_buy(&mut self, is_buy: bool) {
         self.isbuy = Some(is_buy);
@@ -55,11 +58,15 @@ impl Orders {
     pub fn set_limit_px(&mut self, limit_px: &str) {
         self.limitpx = Some(limit_px.to_string());
     }
-
+    pub fn get_limit_px(&self) -> String {
+        self.limitpx.clone().unwrap()
+    }
     pub fn set_sz(&mut self, sz: &str) {
         self.sz = Some(sz.to_string());
     }
-
+    pub fn get_sz(&self) -> String {
+        self.sz.clone().unwrap()
+    }
     pub fn set_reduce_only(&mut self, reduce_only: bool) {
         self.reduceonly = Some(reduce_only);
     }
@@ -71,7 +78,7 @@ impl Orders {
 pub struct Limit {
     pub tif: String,
 }
-impl Limit{
+impl Limit {
     pub fn new() -> Limit {
         Limit {
             tif: String::from("GTC"),

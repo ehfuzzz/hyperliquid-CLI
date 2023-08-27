@@ -1,5 +1,8 @@
+use crate::hyperliquid::order::{
+    build_sl_order, build_sl_payload, build_tp_order_helper, build_tp_payload, place_order,
+};
 use crate::hyperliquid::order_payload::GainOptions;
-use crate::hyperliquid::order::{build_sl_order, build_tp_order,place_order};
+use crate::hyperliquid::order_payload::{OrderPayload, Orders};
 
 pub fn validate_value_size(value: String) -> Result<(), String> {
     if value.ends_with('%') {
@@ -27,35 +30,33 @@ pub fn validate_tp_price(value: String) -> Result<(), String> {
             Ok(())
         } else {
             Err(String::from(
-                "Invalid percentage format: correct example + 10%",
+                "Invalid percentage format: correct example 10%",
             ))
         }
-    } else if value.starts_with("$") && value[1..].len() > 1 {
+    } else if value.starts_with("$") && value.len() > 1 {
         if value[2..].parse::<f64>().is_ok() {
             Ok(())
         } else {
-            Err(String::from("Invalid USDC format: correct example +$300"))
+            Err(String::from("Invalid USDC format: correct example $300"))
         }
     } else if value.ends_with("%pnl") {
         if value.trim_end_matches("%pnl").parse::<f64>().is_ok() {
             Ok(())
         } else {
             Err(String::from(
-                " Invalid % pnl format: correct example: +30%pnl",
+                " Invalid % pnl format: correct example: 30%pnl",
             ))
         }
     } else if value.ends_with("pnl") {
         if value.trim_end_matches("pnl").parse::<f64>().is_ok() {
             Ok(())
         } else {
-            Err(String::from(
-                " Invalid pnl format: correct example: +300pnl",
-            ))
+            Err(String::from(" Invalid pnl format: correct example: 300pnl"))
         }
     } else {
         if validate_value(value).is_err() {
             Err(String::from(
-                "Invalid format: Expected tp format: (+10%, +$300, +300pnl + 34%pnl",
+                "Invalid format: Expected tp format: (10%, $300, 300pnl 34%pnl, 1990)",
             ))
         } else {
             Ok(())
@@ -131,10 +132,11 @@ pub fn validate_value(value: String) -> Result<(), String> {
     }
 }
 
-pub async fn handle_sl_price(
+pub async fn place_sl_order(
     asset: u32,
     is_buy: bool,
     sl_price: &str,
+    limit_px: &str,
     sz: &str,
     reduce_only: bool,
 ) {
@@ -159,19 +161,20 @@ pub async fn handle_sl_price(
         GainOptions::DollarGain(numeric_part)
     };
 
-    let limit_px = "0";
-    let sl_payload = build_sl_order(asset, is_buy, &limit_px, sz, reduce_only, gain);
+    let sl_payload = build_sl_payload(asset, is_buy, &limit_px, sz, reduce_only, gain);
     let response = place_order(sl_payload).await;
 
     println!("Logic for handling sl price: {:#?}", response);
 }
 
-pub async fn handle_tp_price(
+pub async fn place_tp_order(
     asset: u32,
     is_buy: bool,
     tp_price: &str,
+    limit_px: &str,
     sz: &str,
     reduce_only: bool,
+    gain_flag: bool,
 ) {
     let numeric_part: f64 = match tp_price {
         tp_price if tp_price.ends_with("%") => tp_price[0..tp_price.len() - 1].parse().unwrap(),
@@ -188,9 +191,38 @@ pub async fn handle_tp_price(
         GainOptions::DollarGain(numeric_part)
     };
 
-    let limit_px = "0";
-    let _tp_payload = build_tp_order(asset, is_buy, &limit_px, sz, reduce_only, gain);
+    let _tp_payload: OrderPayload =
+        build_tp_payload(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
     let response = place_order(_tp_payload).await;
 
-    println!("Logic for handling {} tp price: {:#?}",tp_price, response);
+    println!("Logic for handling {} tp price: {:#?}", tp_price, response);
+}
+
+pub fn build_tp_order(
+    asset: u32,
+    is_buy: bool,
+    limit_px: &str,
+    tp_price: &str,
+    sz: &str,
+    reduce_only: bool,
+    gain_flag: bool,
+) -> Option<Orders> {
+    let numeric_part: f64 = match tp_price {
+        tp_price if tp_price.ends_with("%") => tp_price[0..tp_price.len() - 1].parse().unwrap(),
+        tp_price if tp_price.starts_with("$") => tp_price[1..].parse().unwrap(),
+        tp_price if tp_price.ends_with("%pnl") => tp_price[0..tp_price.len() - 4].parse().unwrap(),
+        tp_price if tp_price.ends_with("pnl") => tp_price[0..tp_price.len() - 3].parse().unwrap(),
+        tp_price if validate_value(tp_price.to_string()).is_ok() => tp_price.parse().unwrap(),
+        _ => unreachable!("Invalid tp price format"),
+    };
+
+    let gain = if tp_price.ends_with("%") || tp_price.ends_with("%pnl") {
+        GainOptions::PercentageGain(numeric_part)
+    } else {
+        GainOptions::DollarGain(numeric_part)
+    };
+
+    let tp_order: Orders =
+        build_tp_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
+    Some(tp_order)
 }
