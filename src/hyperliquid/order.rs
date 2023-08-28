@@ -2,7 +2,9 @@ use crate::hyperliquid::order_payload::{
     GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
 };
 use crate::hyperliquid::order_responses::PlaceResponse;
+use crate::helpers::{get_current_time_in_milliseconds, generate_transaction_signature};
 use reqwest::Client;
+
 
 pub async fn place_order(
     order_payload: OrderPayload,
@@ -10,8 +12,8 @@ pub async fn place_order(
     let client = Client::new();
     let requestbody = RequestBody {
         action: order_payload,
-        nonce: 0,
-        signature: String::from(""),
+        nonce: get_current_time_in_milliseconds(),
+        signature: generate_transaction_signature(),
         vaultaddress: None,
     };
     let json_body =

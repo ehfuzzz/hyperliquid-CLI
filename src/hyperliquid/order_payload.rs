@@ -120,7 +120,7 @@ pub enum GainOptions {
 pub struct RequestBody {
     #[serde(rename = "type")]
     pub action: OrderPayload,
-    pub nonce: u64,
+    pub nonce: u128,
     pub signature: String,
     pub vaultaddress: Option<String>,
 }

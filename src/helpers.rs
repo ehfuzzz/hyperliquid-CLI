@@ -3,6 +3,9 @@ use crate::hyperliquid::order::{
 };
 use crate::hyperliquid::order_payload::GainOptions;
 use crate::hyperliquid::order_payload::{OrderPayload, Orders};
+use std::time::{SystemTime, UNIX_EPOCH};
+use rand::Rng;
+use hex;
 
 pub fn validate_value_size(value: String) -> Result<(), String> {
     if value.ends_with('%') {
@@ -261,4 +264,20 @@ pub fn build_sl_order(
     let sl_order: Orders =
         build_sl_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
     Some(sl_order)
+}
+
+pub fn get_current_time_in_milliseconds() -> u128 {
+    let now = SystemTime::now();
+    now.duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis()
+}
+
+pub fn generate_transaction_signature() -> String {
+    let mut rng = rand::thread_rng();
+    let random_number: u128 = rng.gen();
+    let random_number_string = random_number.to_string();
+    let random_number_string = random_number_string.as_bytes();
+    let random_number_string = hex::encode(random_number_string);
+    random_number_string
 }
