@@ -1,11 +1,6 @@
-use crate::hyperliquid::order::{
-    build_sl_order_helper, build_sl_payload, build_tp_order_helper, build_tp_payload, place_order,
-};
-use crate::hyperliquid::order_payload::GainOptions;
-use crate::hyperliquid::order_payload::{OrderPayload, Orders};
-use std::time::{SystemTime, UNIX_EPOCH};
-use rand::Rng;
 use hex;
+use rand::Rng;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn validate_value_size(value: String) -> Result<(), String> {
     if value.ends_with('%') {
@@ -159,112 +154,114 @@ pub async fn place_sl_order(
         _ => return,
     };
 
-    let gain = if sl_price.trim_start_matches("-").ends_with("%") {
-        GainOptions::PercentageGain(numeric_part)
-    } else {
-        GainOptions::DollarGain(numeric_part)
-    };
+    // let gain = if sl_price.trim_start_matches("-").ends_with("%") {
+    //     GainOptions::PercentageGain(numeric_part)
+    // } else {
+    //     GainOptions::DollarGain(numeric_part)
+    // };
 
-    let sl_payload = build_sl_payload(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
-    let response = place_order(sl_payload).await;
+    // let sl_payload = build_sl_payload(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
+    // let response = place_order(sl_payload).await;
 
-    println!("Logic for handling sl price: {:#?}", response);
+    // println!("Logic for handling sl price: {:#?}", response);
 }
 
-pub async fn place_tp_order(
-    asset: u32,
-    is_buy: bool,
-    tp_price: &str,
-    limit_px: &str,
-    sz: &str,
-    reduce_only: bool,
-    gain_flag: bool,
-) {
-    let numeric_part: f64 = match tp_price {
-        tp_price if tp_price.ends_with("%") => tp_price[0..tp_price.len() - 1].parse().unwrap(),
-        tp_price if tp_price.starts_with("$") => tp_price[1..].parse().unwrap(),
-        tp_price if tp_price.ends_with("%pnl") => tp_price[0..tp_price.len() - 4].parse().unwrap(),
-        tp_price if tp_price.ends_with("pnl") => tp_price[0..tp_price.len() - 3].parse().unwrap(),
-        tp_price if validate_value(tp_price.to_string()).is_ok() => tp_price.parse().unwrap(),
-        _ => return,
-    };
+// pub async fn place_tp_order(
+//     asset: u32,
+//     is_buy: bool,
+//     tp_price: &str,
+//     limit_px: &str,
+//     sz: &str,
+//     reduce_only: bool,
+//     gain_flag: bool,
+// ) {
+//     let numeric_part: f64 = match tp_price {
+//         tp_price if tp_price.ends_with("%") => tp_price[0..tp_price.len() - 1].parse().unwrap(),
+//         tp_price if tp_price.starts_with("$") => tp_price[1..].parse().unwrap(),
+//         tp_price if tp_price.ends_with("%pnl") => tp_price[0..tp_price.len() - 4].parse().unwrap(),
+//         tp_price if tp_price.ends_with("pnl") => tp_price[0..tp_price.len() - 3].parse().unwrap(),
+//         tp_price if validate_value(tp_price.to_string()).is_ok() => tp_price.parse().unwrap(),
+//         _ => return,
+//     };
 
-    let gain = if tp_price.ends_with("%") || tp_price.ends_with("%pnl") {
-        GainOptions::PercentageGain(numeric_part)
-    } else {
-        GainOptions::DollarGain(numeric_part)
-    };
+//     let gain = if tp_price.ends_with("%") || tp_price.ends_with("%pnl") {
+//         GainOptions::PercentageGain(numeric_part)
+//     } else {
+//         GainOptions::DollarGain(numeric_part)
+//     };
 
-    let _tp_payload: OrderPayload =
-        build_tp_payload(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
-    let response = place_order(_tp_payload).await;
+//     // let _tp_payload: OrderPayload =
+//     // build_tp_payload(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
+//     // let response = place_order(_tp_payload).await;
 
-    println!("Logic for handling {} tp price: {:#?}", tp_price, response);
-}
+//     // println!("Logic for handling {} tp price: {:#?}", tp_price, response);
+// }
 
-pub fn build_tp_order(
-    asset: u32,
-    is_buy: bool,
-    limit_px: &str,
-    tp_price: &str,
-    sz: &str,
-    reduce_only: bool,
-    gain_flag: bool,
-) -> Option<Orders> {
-    let numeric_part: f64 = match tp_price {
-        tp_price if tp_price.ends_with("%") => tp_price[0..tp_price.len() - 1].parse().unwrap(),
-        tp_price if tp_price.starts_with("$") => tp_price[1..].parse().unwrap(),
-        tp_price if tp_price.ends_with("%pnl") => tp_price[0..tp_price.len() - 4].parse().unwrap(),
-        tp_price if tp_price.ends_with("pnl") => tp_price[0..tp_price.len() - 3].parse().unwrap(),
-        tp_price if validate_value(tp_price.to_string()).is_ok() => tp_price.parse().unwrap(),
-        _ => unreachable!("Invalid tp price format"),
-    };
+// pub fn build_tp_order(
+//     asset: u32,
+//     is_buy: bool,
+//     limit_px: &str,
+//     tp_price: &str,
+//     sz: &str,
+//     reduce_only: bool,
+//     gain_flag: bool,
+// ) -> Option<Orders> {
+//     let numeric_part: f64 = match tp_price {
+//         tp_price if tp_price.ends_with("%") => tp_price[0..tp_price.len() - 1].parse().unwrap(),
+//         tp_price if tp_price.starts_with("$") => tp_price[1..].parse().unwrap(),
+//         tp_price if tp_price.ends_with("%pnl") => tp_price[0..tp_price.len() - 4].parse().unwrap(),
+//         tp_price if tp_price.ends_with("pnl") => tp_price[0..tp_price.len() - 3].parse().unwrap(),
+//         tp_price if validate_value(tp_price.to_string()).is_ok() => tp_price.parse().unwrap(),
+//         _ => unreachable!("Invalid tp price format"),
+//     };
 
-    let gain = if tp_price.ends_with("%") || tp_price.ends_with("%pnl") {
-        GainOptions::PercentageGain(numeric_part)
-    } else {
-        GainOptions::DollarGain(numeric_part)
-    };
+//     let gain = if tp_price.ends_with("%") || tp_price.ends_with("%pnl") {
+//         GainOptions::PercentageGain(numeric_part)
+//     } else {
+//         GainOptions::DollarGain(numeric_part)
+//     };
 
-    let tp_order: Orders =
-        build_tp_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
-    Some(tp_order)
-}
+//     // let tp_order: Orders =
+//     //     build_tp_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
+//     // Some(tp_order)
+//     None
+// }
 
-pub fn build_sl_order(
-    asset: u32,
-    is_buy: bool,
-    limit_px: &str,
-    sl_price: &str,
-    sz: &str,
-    reduce_only: bool,
-    gain_flag: bool,
-) -> Option<Orders> {
-    let numeric_part: f64 = match sl_price {
-        sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
-            sl_price[0..sl_price.len() - 1].parse().unwrap()
-        }
-        sl_price if sl_price.starts_with("-$") => sl_price[2..].parse().unwrap(),
-        sl_price if validate_value(sl_price.to_string()).is_ok() => sl_price.parse().unwrap(),
-        sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
-            sl_price[0..sl_price.len() - 4].parse().unwrap()
-        }
-        sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
-            sl_price[0..sl_price.len() - 3].parse().unwrap()
-        }
-        _ => unreachable!("Invalid sl price format"),
-    };
+// pub fn build_sl_order(
+//     asset: u32,
+//     is_buy: bool,
+//     limit_px: &str,
+//     sl_price: &str,
+//     sz: &str,
+//     reduce_only: bool,
+//     gain_flag: bool,
+// ) -> Option<Orders> {
+//     let numeric_part: f64 = match sl_price {
+//         sl_price if sl_price.trim_start_matches("-").ends_with("%") => {
+//             sl_price[0..sl_price.len() - 1].parse().unwrap()
+//         }
+//         sl_price if sl_price.starts_with("-$") => sl_price[2..].parse().unwrap(),
+//         sl_price if validate_value(sl_price.to_string()).is_ok() => sl_price.parse().unwrap(),
+//         sl_price if sl_price.trim_start_matches("-").ends_with("%pnl") => {
+//             sl_price[0..sl_price.len() - 4].parse().unwrap()
+//         }
+//         sl_price if sl_price.trim_start_matches("-").ends_with("pnl") => {
+//             sl_price[0..sl_price.len() - 3].parse().unwrap()
+//         }
+//         _ => unreachable!("Invalid sl price format"),
+//     };
 
-    let gain = if sl_price.trim_start_matches("-").ends_with("%") {
-        GainOptions::PercentageGain(numeric_part)
-    } else {
-        GainOptions::DollarGain(numeric_part)
-    };
+//     let gain = if sl_price.trim_start_matches("-").ends_with("%") {
+//         GainOptions::PercentageGain(numeric_part)
+//     } else {
+//         GainOptions::DollarGain(numeric_part)
+//     };
 
-    let sl_order: Orders =
-        build_sl_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
-    Some(sl_order)
-}
+//     // let sl_order: Orders =
+//     // build_sl_order_helper(asset, is_buy, &limit_px, sz, reduce_only, gain, gain_flag);
+//     // Some(sl_order)
+//     None
+// }
 
 pub fn get_current_time_in_milliseconds() -> u128 {
     let now = SystemTime::now();

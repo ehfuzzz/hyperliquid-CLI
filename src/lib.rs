@@ -1,5 +1,5 @@
 pub mod cli;
-mod handlers;
 pub mod helpers;
 pub mod hyperliquid;
+pub mod model;
 pub mod settings;

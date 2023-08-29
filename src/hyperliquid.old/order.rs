@@ -1,10 +1,6 @@
-use crate::helpers::{generate_transaction_signature, get_current_time_in_milliseconds};
 use crate::hyperliquid::order_payload::{
     GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
 };
-use crate::hyperliquid::order_responses::PlaceResponse;
-use reqwest::Client;
-
 use crate::hyperliquid::order_responses::PlaceResponse;
 use reqwest::Client;
 

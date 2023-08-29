@@ -18,15 +18,7 @@ impl OrderPayload {
         self.orders.push(order);
     }
 }
-#[derive(Serialize, Debug)]
-pub struct Orders {
-    pub asset: Option<u32>,
-    pub isbuy: Option<bool>,
-    pub limitpx: Option<String>,
-    pub sz: Option<String>,
-    pub reduceonly: Option<bool>,
-    pub ordertype: Option<OrderType>,
-}
+
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum OrderType {
