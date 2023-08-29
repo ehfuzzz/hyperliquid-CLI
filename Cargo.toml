@@ -9,7 +9,11 @@ edition = "2021"
 [dependencies]
 clap = "2.33"
 config = { version = "0.13.3", default-features = false, features = ["toml"] }
-reqwest = { version = "0.11.18", default-features = false }
+hex = "0.4.3"
+lazy_static = "1.4.0"
+rand = "0.8.5"
+reqwest = { version = "0.11.18", default-features = false, features = ["json"] }
 secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.183", features = ["derive"] }
+serde_json = "1.0.105"
 tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread"] }

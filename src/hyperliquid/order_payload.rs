@@ -28,6 +28,7 @@ pub struct Orders {
     pub ordertype: Option<OrderType>,
 }
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub enum OrderType {
     Limit(Limit),
     Trigger(Trigger),
@@ -79,26 +80,14 @@ pub struct Limit {
     pub tif: String,
 }
 impl Limit {
-    pub fn new(&self) -> Limit {
-        match self {
-            Limit::Limit(limit) =>
-                match limit.tif.as_str() {
-                    "GTC" =>
-                        Limit {
-                            tif: String::from("GTC"),
-                        },
-                    "IOC" =>
-                        Limit {
-                            tif: String::from("IOC"),
-                        },
-                    "FOK" =>
-                        Limit {
-                            tif: String::from("FOK"),
-                        },
-                    _ => panic!("Invalid TIF"),
-                }
+    pub fn new(tif: &str) -> Result<Limit, &'static str> {
+        match tif {
+            "GTC" | "IOC" | "FOK" =>
+                Ok(Limit {
+                    tif: tif.to_string(),
+                }),
+            _ => Err("Invalid TIF"),
         }
-       
     }
 }
 
