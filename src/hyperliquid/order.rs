@@ -1,16 +1,15 @@
+use crate::helpers::{generate_transaction_signature, get_current_time_in_milliseconds};
 use crate::hyperliquid::order_payload::{
-    GainOptions,
-    OrderPayload,
-    OrderType,
-    Orders,
-    RequestBody,
-    Trigger,
+    GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
 };
 use crate::hyperliquid::order_responses::PlaceResponse;
 use reqwest::Client;
 
+use crate::hyperliquid::order_responses::PlaceResponse;
+use reqwest::Client;
+
 pub async fn place_order(
-    order_payload: OrderPayload
+    order_payload: OrderPayload,
 ) -> Result<PlaceResponse, Box<dyn std::error::Error>> {
     let client = Client::new();
     let requestbody = RequestBody {
@@ -19,15 +18,16 @@ pub async fn place_order(
         signature: String::from(""),
         vaultaddress: None,
     };
-    let json_body = serde_json
-        ::to_string(&requestbody)
-        .expect("Failed to serialize the request body");
+    let json_body =
+        serde_json::to_string(&requestbody).expect("Failed to serialize the request body");
     let resp = client
         .post("https://api.hyperliquid.xyz/exchange")
         .body(json_body)
         .header("Content-Type", "application/json")
-        .send().await?
-        .json::<PlaceResponse>().await?;
+        .send()
+        .await?
+        .json::<PlaceResponse>()
+        .await?;
     Ok(resp)
 }
 
@@ -49,7 +49,11 @@ pub fn handle_tp_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trig
                 target_price / leverage
             }
             GainOptions::DollarGain(dollar) => {
-                let target_price = if is_buy { entry_price - dollar } else { entry_price + dollar };
+                let target_price = if is_buy {
+                    entry_price - dollar
+                } else {
+                    entry_price + dollar
+                };
 
                 target_price / leverage
             }
@@ -96,7 +100,11 @@ pub fn handle_sl_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trig
                 target_price / leverage
             }
             GainOptions::DollarGain(dollar) => {
-                let target_price = if is_buy { entry_price + dollar } else { entry_price - dollar };
+                let target_price = if is_buy {
+                    entry_price + dollar
+                } else {
+                    entry_price - dollar
+                };
 
                 target_price / leverage
             }
@@ -130,7 +138,7 @@ pub fn build_tp_payload(
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
-    gain_flag: bool
+    gain_flag: bool,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut tp_order = Orders::new();
@@ -150,7 +158,7 @@ pub fn build_sl_payload(
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
-    gain_flag: bool
+    gain_flag: bool,
 ) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     let mut sl_order = Orders::new();
@@ -170,7 +178,7 @@ pub fn build_tp_order_helper(
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
-    gain_flag: bool
+    gain_flag: bool,
 ) -> Orders {
     let mut tp_order = Orders::new();
     let trigger = handle_tp_logic(gain, is_buy, gain_flag);
@@ -188,7 +196,7 @@ pub fn build_sl_order_helper(
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
-    gain_flag: bool
+    gain_flag: bool,
 ) -> Orders {
     let mut sl_order = Orders::new();
     let trigger = handle_sl_logic(gain, is_buy, gain_flag);

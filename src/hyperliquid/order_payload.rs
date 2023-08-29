@@ -82,10 +82,9 @@ pub struct Limit {
 impl Limit {
     pub fn new(tif: &str) -> Result<Limit, &'static str> {
         match tif {
-            "GTC" | "IOC" | "FOK" =>
-                Ok(Limit {
-                    tif: tif.to_string(),
-                }),
+            "GTC" | "IOC" | "FOK" => Ok(Limit {
+                tif: tif.to_string(),
+            }),
             _ => Err("Invalid TIF"),
         }
     }
