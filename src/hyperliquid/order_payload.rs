@@ -28,6 +28,7 @@ pub struct Orders {
     pub ordertype: Option<OrderType>,
 }
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub enum OrderType {
     Limit(Limit),
     Trigger(Trigger),
@@ -79,9 +80,12 @@ pub struct Limit {
     pub tif: String,
 }
 impl Limit {
-    pub fn new() -> Limit {
-        Limit {
-            tif: String::from("GTC"),
+    pub fn new(tif: &str) -> Result<Limit, &'static str> {
+        match tif {
+            "GTC" | "IOC" | "FOK" => Ok(Limit {
+                tif: tif.to_string(),
+            }),
+            _ => Err("Invalid TIF"),
         }
     }
 }
@@ -120,7 +124,7 @@ pub enum GainOptions {
 pub struct RequestBody {
     #[serde(rename = "type")]
     pub action: OrderPayload,
-    pub nonce: u128,
+    pub nonce: u64,
     pub signature: String,
     pub vaultaddress: Option<String>,
 }

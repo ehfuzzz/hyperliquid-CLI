@@ -1,5 +1,4 @@
 mod cli;
-mod handlers;
 mod helpers;
 mod settings;
 pub mod hyperliquid {
@@ -12,6 +11,11 @@ pub mod hyperliquid {
 }
 
 use settings::Settings;
+pub mod hyperliquid {
+    pub mod order;
+    pub mod order_payload;
+    pub mod order_responses;
+}
 
 #[tokio::main]
 async fn main() {

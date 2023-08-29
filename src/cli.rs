@@ -1,4 +1,6 @@
 //using version 2.33 not the latest one
+use clap::{App, Arg};
+use std::num::ParseFloatError;
 
 use crate::handlers::{
     handle_cross_margin, handle_isolated_margin, handle_notional_value, handle_risk_value,
@@ -9,6 +11,7 @@ use crate::helpers::{
 };
 use crate::hyperliquid::meta_info::calculate_asset_to_id;
 use crate::hyperliquid::open_orders::{get_side_from_oid, get_sz_from_oid};
+use crate::hyperliquid::HyperLiquid;
 
 use crate::hyperliquid::order::{build_buy_order, build_sell_order};
 use crate::hyperliquid::order_payload::{Limit, OrderType, Orders};
@@ -537,6 +540,8 @@ pub async fn cli() {
         )
         .get_matches();
 
+    let hyperliquid = HyperLiquid::new("account".to_string());
+
     match matches.subcommand() {
         ("set", Some(set_matches)) => match set_matches.subcommand() {
             ("ds", Some(ds_matches)) => {
@@ -582,6 +587,29 @@ pub async fn cli() {
                     _ => unreachable!(), // we should not get here because of the possible value checker
                 }
             }
+            ("dm", Some(dm_matches)) => {
+                let margin_type = dm_matches.value_of("margin_type").unwrap();
+                println!("Margin type: {}", margin_type);
+
+                match margin_type {
+                    "i" => handle_isolated_margin(margin_type),
+                    "c" => handle_cross_margin(margin_type),
+                    _ => unreachable!(), // we should not get here because of the possible value checker
+                }
+            }
+
+            ("da", Some(da_match)) => {
+                let asset = da_match.value_of("asset").unwrap();
+                println!("You have set {} as your default asset to be traded", asset)
+            }
+            ("dl", Some(dl_match)) => {
+                let leverage = dl_match.value_of("amount").unwrap().parse::<f64>().unwrap();
+                println!("You have set {} as your default leverage size", leverage);
+            }
+            _ => {
+                println!("No subcommand was used");
+            }
+        },
 
             ("da", Some(da_match)) => {
                 let asset = da_match.value_of("asset").unwrap();
@@ -613,6 +641,16 @@ pub async fn cli() {
             let is_buy: bool = get_side_from_oid(oid);
 
             let limit_px = "1900";
+            let converted_percentage_order: Result<f64, ParseFloatError> = {
+                percentage_order
+                    .trim_end_matches("%")
+                    .parse::<f64>()
+                    .map(|percent| percent / 100.0)
+            };
+            println!(
+                "converted percentage order: {:?}, asset: {}",
+                converted_percentage_order, asset
+            );
 
             match tp_price {
                 tp_price
@@ -626,6 +664,7 @@ pub async fn cli() {
                 tp_price if validate_value(tp_price.to_string()).is_ok() => {
                     place_tp_order(asset, is_buy, tp_price, limit_px, &sz, reduce_only, false)
                         .await;
+                    println!("Logic for handling + 100: {}", &tp_price);
                 }
                 _ => {
                     println!("No matching pattern");
@@ -650,6 +689,17 @@ pub async fn cli() {
             let limit_px = "1900";
 
             // Inside your original function
+            let converted_percentage_order: Result<f64, ParseFloatError> = {
+                percentage_order
+                    .trim_end_matches("%")
+                    .parse::<f64>()
+                    .map(|percent| percent / 100.0)
+            };
+            println!(
+                "converted percentage order: {:?}, asset: {}",
+                converted_percentage_order, asset
+            );
+
             match sl_price {
                 sl_price
                     if sl_price.trim_start_matches("-").ends_with("%")
@@ -803,8 +853,7 @@ pub async fn cli() {
                 println!("No sell was provided");
             }
 
-            let buy_payload = build_buy_order(buy_order, tp_order, sl_order);
-            println!("Buy payload Confirmation: {:#?}", buy_payload);
+            hyperliquid.handle_risk_value(value);
         }
 
         ("sell", Some(sell_matches)) => {

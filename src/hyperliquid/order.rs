@@ -1,10 +1,12 @@
+use crate::helpers::{generate_transaction_signature, get_current_time_in_milliseconds};
 use crate::hyperliquid::order_payload::{
     GainOptions, OrderPayload, OrderType, Orders, RequestBody, Trigger,
 };
 use crate::hyperliquid::order_responses::PlaceResponse;
-use crate::helpers::{get_current_time_in_milliseconds, generate_transaction_signature};
 use reqwest::Client;
 
+use crate::hyperliquid::order_responses::PlaceResponse;
+use reqwest::Client;
 
 pub async fn place_order(
     order_payload: OrderPayload,
@@ -12,8 +14,8 @@ pub async fn place_order(
     let client = Client::new();
     let requestbody = RequestBody {
         action: order_payload,
-        nonce: get_current_time_in_milliseconds(),
-        signature: generate_transaction_signature(),
+        nonce: 0,
+        signature: String::from(""),
         vaultaddress: None,
     };
     let json_body =
@@ -68,7 +70,9 @@ pub fn handle_tp_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trig
     };
 
     if (is_buy && actual_tp_price <= entry_price) || (!is_buy && actual_tp_price >= entry_price) {
-        panic!("TP price must be higher than entry price for longs and lower than entry price for shorts");
+        panic!(
+            "TP price must be higher than entry price for longs and lower than entry price for shorts"
+        );
     }
 
     trigger.set_trigger_px(actual_tp_price);
@@ -117,7 +121,9 @@ pub fn handle_sl_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trig
     };
 
     if (is_buy && actual_sl_price >= entry_price) || (!is_buy && actual_sl_price <= entry_price) {
-        panic!("SL price must be lower than entry price for longs and higher than entry price for shorts");
+        panic!(
+            "SL price must be lower than entry price for longs and higher than entry price for shorts"
+        );
     }
 
     trigger.set_trigger_px(actual_sl_price);
@@ -129,7 +135,6 @@ pub fn handle_sl_logic(gain: GainOptions, is_buy: bool, gain_flag: bool) -> Trig
 pub fn build_tp_payload(
     asset: u32,
     is_buy: bool,
-    limit_px: &str,
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
@@ -140,7 +145,6 @@ pub fn build_tp_payload(
     let trigger = handle_tp_logic(gain, is_buy, gain_flag);
     tp_order.set_asset(asset);
     tp_order.set_is_buy(is_buy);
-    tp_order.set_limit_px(&limit_px);
     tp_order.set_sz(&sz);
     tp_order.set_reduce_only(reduce_only);
     tp_order.set_order_type(OrderType::Trigger(trigger));
@@ -151,7 +155,6 @@ pub fn build_tp_payload(
 pub fn build_sl_payload(
     asset: u32,
     is_buy: bool,
-    limit_px: &str,
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
@@ -162,7 +165,6 @@ pub fn build_sl_payload(
     let trigger = handle_sl_logic(gain, is_buy, gain_flag);
     sl_order.set_asset(asset);
     sl_order.set_is_buy(is_buy);
-    sl_order.set_limit_px(&limit_px);
     sl_order.set_sz(&sz);
     sl_order.set_reduce_only(reduce_only);
     sl_order.set_order_type(OrderType::Trigger(trigger));
@@ -173,7 +175,6 @@ pub fn build_sl_payload(
 pub fn build_tp_order_helper(
     asset: u32,
     is_buy: bool,
-    limit_px: &str,
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
@@ -183,7 +184,6 @@ pub fn build_tp_order_helper(
     let trigger = handle_tp_logic(gain, is_buy, gain_flag);
     tp_order.set_asset(asset);
     tp_order.set_is_buy(is_buy);
-    tp_order.set_limit_px(&limit_px);
     tp_order.set_sz(&sz);
     tp_order.set_reduce_only(reduce_only);
     tp_order.set_order_type(OrderType::Trigger(trigger));
@@ -193,7 +193,6 @@ pub fn build_tp_order_helper(
 pub fn build_sl_order_helper(
     asset: u32,
     is_buy: bool,
-    limit_px: &str,
     sz: &str,
     reduce_only: bool,
     gain: GainOptions,
@@ -203,47 +202,20 @@ pub fn build_sl_order_helper(
     let trigger = handle_sl_logic(gain, is_buy, gain_flag);
     sl_order.set_asset(asset);
     sl_order.set_is_buy(is_buy);
-    sl_order.set_limit_px(&limit_px);
     sl_order.set_sz(&sz);
     sl_order.set_reduce_only(reduce_only);
     sl_order.set_order_type(OrderType::Trigger(trigger));
     sl_order
 }
 
-pub fn build_buy_order(
-    buy_order: Orders,
-    tp_order: Option<Orders>,
-    sl_order: Option<Orders>,
-) -> OrderPayload {
+pub fn build_buy_order(buy_order: Orders) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     order_payload.add_order(buy_order);
-
-    if let Some(tp_order) = tp_order {
-        order_payload.add_order(tp_order);
-    }
-
-    if let Some(sl_order) = sl_order {
-        order_payload.add_order(sl_order);
-    }
-
     order_payload
 }
 
-pub fn build_sell_order(
-    sell_order: Orders,
-    tp_order: Option<Orders>,
-    sl_order: Option<Orders>,
-) -> OrderPayload {
+pub fn build_sell_order(sell_order: Orders) -> OrderPayload {
     let mut order_payload = OrderPayload::new();
     order_payload.add_order(sell_order);
-
-    if let Some(tp_order) = tp_order {
-        order_payload.add_order(tp_order);
-    }
-
-    if let Some(sl_order) = sl_order {
-        order_payload.add_order(sl_order);
-    }
-
     order_payload
 }
