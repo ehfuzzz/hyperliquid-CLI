@@ -773,7 +773,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
                     println!(
                         "Buy {}{} each with limit orders at {}, {}, {}, {}, {}...,{}
-{}{} bought in total with {} limit orders",
+                            {}{} bought in total with {} limit orders",
                         converted_total_order_size,
                         asset,
                         lower_price_bracket,
@@ -906,7 +906,9 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
         }
         ("view", Some(view_matches)) => match view_matches.subcommand_name() {
             Some("pnl") => {
-                println!("Implement view pnl logic");
+                let res = hyperliquid.pnl().await;
+
+                println!("{:#?}", res);
             }
             Some("wallet") => {
                 println!("Implement view wallet balance logic");

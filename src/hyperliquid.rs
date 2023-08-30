@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::SystemTime};
 
 use anyhow::Result;
+use config::Value;
 use ethers::{
     abi::{AbiEncode, Hash},
     contract::{Eip712, EthAbiType},
@@ -9,7 +10,7 @@ use ethers::{
     types::{transaction::eip712::Eip712, Address, Signature, H256},
     utils::keccak256,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
@@ -128,11 +129,19 @@ impl HyperLiquid {
     }
 
     pub async fn metadata(&self) -> Result<Universe, anyhow::Error> {
-        Ok(self.info("meta").await?)
+        Ok(self
+            .info(json!({
+                    "type": "meta",
+            }))
+            .await?)
     }
 
     pub async fn asset_ctx(&self, asset: &str) -> Result<Option<Ctx>, anyhow::Error> {
-        let res = &self.info::<Vec<AssetCtx>>("metaAndAssetCtxs").await?;
+        let res = &self
+            .info::<Vec<AssetCtx>>(json!({
+                    "type": "metaAndAssetCtxs",
+            }))
+            .await?;
 
         let universe = match res.get(0) {
             Some(AssetCtx::Universe(universe)) => universe,
@@ -155,13 +164,25 @@ impl HyperLiquid {
         Ok(Some(ctxs[position].clone()))
     }
 
-    async fn info<R: for<'de> Deserialize<'de>>(&self, value: &str) -> Result<R, anyhow::Error> {
+    pub async fn pnl(&self) -> Result<Value, anyhow::Error> {
+        let res = self
+            .info(json!({
+                    "type": "userFills",
+                    "user": self.wallet.address(),
+            }))
+            .await?;
+
+        Ok(res)
+    }
+
+    async fn info<R: for<'de> Deserialize<'de>>(
+        &self,
+        body: impl Serialize,
+    ) -> Result<R, anyhow::Error> {
         let res = self
             .client
-            .post("https://api.hyperliquid.xyz/info")
-            .json(&json!({
-                    "type": value,
-            }))
+            .post("https://api.hyperliquid-testnet.xyz/info")
+            .json(&body)
             .send()
             .await?
             .json()
