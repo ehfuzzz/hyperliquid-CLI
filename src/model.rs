@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::helpers::float_to_int_for_hashing;
+
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum Tif {
@@ -44,6 +46,24 @@ pub struct OrderRequest {
     pub sz: String,
     pub reduce_only: bool,
     pub order_type: OrderType,
+}
+
+impl OrderRequest {
+    pub fn get_type(&self) -> (u8, u64) {
+        match &self.order_type {
+            OrderType::Limit(limit) => match limit.tif {
+                Tif::Gtc => (2, 0),
+                Tif::Alo => (1, 0),
+                Tif::Ioc => (3, 0),
+            },
+            OrderType::Trigger(trigger) => match (trigger.is_market, &trigger.tpsl) {
+                (true, TriggerType::Tp) => (4, float_to_int_for_hashing(trigger.triger_px)),
+                (false, TriggerType::Tp) => (5, float_to_int_for_hashing(trigger.triger_px)),
+                (true, TriggerType::Sl) => (6, float_to_int_for_hashing(trigger.triger_px)),
+                (false, TriggerType::Sl) => (7, float_to_int_for_hashing(trigger.triger_px)),
+            },
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -100,14 +120,15 @@ pub struct Universe {
     pub universe: Vec<Asset>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Ctx {
     pub mark_px: String,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
 pub enum AssetCtx {
-    Universe(Vec<Asset>),
+    Universe(Universe),
+    Ctx(Vec<Ctx>),
 }

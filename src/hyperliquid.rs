@@ -4,6 +4,7 @@ use anyhow::Result;
 use ethers::{
     abi::{AbiEncode, Hash},
     contract::{Eip712, EthAbiType},
+    providers::Middleware,
     signers::{LocalWallet, Signer, Wallet},
     types::{transaction::eip712::Eip712, Address, Signature, H256},
     utils::keccak256,
@@ -11,7 +12,10 @@ use ethers::{
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::model::{AssetCtx, ExchangeResponse, OrderRequest, OrderResponse, Universe};
+use crate::{
+    helpers::float_to_int_for_hashing,
+    model::{AssetCtx, Ctx, ExchangeResponse, OrderRequest, OrderResponse, Universe},
+};
 
 // <https://eips.ethereum.org/EIPS/eip-712>
 // <https://eips.ethereum.org/EIPS/eip-2612>
@@ -67,47 +71,25 @@ impl HyperLiquid {
             .as_millis();
 
         let connection_id = {
-            let asset: u32 = 4;
-            let is_buy: bool = true;
-            let limit_px: u64 = 180000000000;
-            let sz: u64 = 1000000;
-            let reduce_only: bool = false;
-            let order_type_0: u8 = 2;
-            let order_type_1: u64 = 0;
-
-            let order = vec![(
-                asset,
-                is_buy,
-                limit_px,
-                sz,
-                reduce_only,
-                order_type_0,
-                order_type_1,
-            )];
-
             let mut hashable_tuples = Vec::new();
 
-            // for order in orders.iter() {
-            // let order_type = match order.order_type {
-            //     ethers::contract::OrderType::Limit(_) => 2,
-            //     ethers::contract::OrderType::Trigger(_) => 3,
-            // };
+            for order in orders.iter() {
+                let order_type = order.get_type();
 
-            // let order_type_0 = order_type as u8;
-            // let order_type_1 = 0;
+                let order = (
+                    order.asset,
+                    order.is_buy,
+                    float_to_int_for_hashing(
+                        order.limit_px.parse().expect("Failed to parse limit_px"),
+                    ),
+                    float_to_int_for_hashing(order.sz.parse().expect("Failed to parse sz")),
+                    order.reduce_only,
+                    order_type.0,
+                    order_type.1,
+                );
 
-            // let order = (
-            //     order.asset,
-            //     order.is_buy,
-            //     order.limit_px,
-            //     order.sz,
-            //     order.reduce_only,
-            //     order_type_0,
-            //     order_type_1,
-            // );
-
-            hashable_tuples.push(order);
-            // }
+                hashable_tuples.push(order);
+            }
 
             let grouping: i32 = 0;
             let vault_address = Address::zero();
@@ -149,18 +131,28 @@ impl HyperLiquid {
         Ok(self.info("meta").await?)
     }
 
-    pub async fn asset_ctx(&self, asset: &str) -> Result<u32, anyhow::Error> {
-        let res = self.info::<Vec<AssetCtx>>("metaAndAssetCtxs").await?;
+    pub async fn asset_ctx(&self, asset: &str) -> Result<Option<Ctx>, anyhow::Error> {
+        let res = &self.info::<Vec<AssetCtx>>("metaAndAssetCtxs").await?;
 
-        // filter out the asset we want
-        // let asset_ctx = res
-        //     .into_iter()
-        //     .filter(|asset_ctx| asset_ctx.name == asset)
-        //     .map(|asset_ctx| asset_ctx.ctx)
-        //     .collect::<Vec<u32>>()
-        //     .pop()
-        //     .expect("Failed to find asset");
-        Ok(0)
+        let universe = match res.get(0) {
+            Some(AssetCtx::Universe(universe)) => universe,
+            _ => return Ok(None),
+        };
+
+        let position = universe
+            .universe
+            .iter()
+            .position(|a| a.name.to_uppercase() == asset.to_uppercase())
+            .unwrap();
+
+        let ctxs = match res.get(1) {
+            Some(AssetCtx::Ctx(ctxs)) => ctxs,
+            _ => return Ok(None),
+        };
+
+        println!("Position: {}", position);
+
+        Ok(Some(ctxs[position].clone()))
     }
 
     async fn info<R: for<'de> Deserialize<'de>>(&self, value: &str) -> Result<R, anyhow::Error> {
@@ -172,14 +164,9 @@ impl HyperLiquid {
             }))
             .send()
             .await?
-            .text()
+            .json()
             .await?;
-        // .json()
-        // .await?;
 
-        println!("{:#?}", res);
-        todo!("Implement info");
-
-        // Ok(res)
+        Ok(res)
     }
 }

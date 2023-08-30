@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 //using version 2.33 not the latest one
 use clap::{App, Arg};
 
@@ -465,6 +467,19 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
         )
         .get_matches();
 
+    let metadata = hyperliquid
+        .metadata()
+        .await
+        .expect("Failed to fetch metadata");
+
+    let assets = metadata
+        .universe
+        .into_iter()
+        .map(|asset| (asset.name.to_uppercase(), asset.sz_decimals))
+        .collect::<HashMap<String, u32>>();
+
+    println!("{:#?}", assets);
+
     match matches.subcommand() {
         ("tp", Some(tp_matches)) => {
             let percentage_order = tp_matches.value_of("percentage_order").unwrap();
@@ -548,16 +563,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             let take_profit = buy_matches.value_of("take_profit");
             let stop_loss = buy_matches.value_of("stop_loss");
 
-            let sz = "0.01000000".to_string();
-            // order_size.unwrap_or_else(|| &config.default_size.size)[1..].to_string();
-
-            let asset = 4;
-            // asset
-            //     .unwrap_or_else(|| &config.default_asset.value)
-            //     .to_string();
-
-            let limit_px = "1800.00000000".to_string();
-            // limit_price.unwrap_or_default()[1..].to_string();
+            let asset = asset.unwrap_or_else(|| &config.default_asset.value);
 
             let triger_px = take_profit
                 .unwrap_or("0")
@@ -568,8 +574,42 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
             let order_type = OrderType::Limit(Limit { tif: Tif::Gtc });
 
+            let sz_decimals = *assets
+                .get(&asset.to_uppercase())
+                .expect("Failed to find asset");
+
+            let asset_ctx = hyperliquid
+                .asset_ctx(asset)
+                .await
+                .expect("Failed to fetch asset ctxs")
+                .expect("Failed to find asset");
+
+            let mark_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+
+            let sz = {
+                let sz = order_size.unwrap_or_else(|| &config.default_size.size)[1..].to_string();
+
+                println!("Sz: {}", sz);
+
+                let sz = sz
+                    .parse::<f64>()
+                    .expect("Expected a numeric value for order size");
+
+                let sz = (sz / mark_price) as f64;
+
+                format!("{:.*}", sz_decimals as usize, sz)
+            };
+
+            let limit_px = limit_price.unwrap_or(&format!("@{}", mark_price))[1..].to_string();
+
+            println!("Limit Px: {}", limit_px);
+            println!("Sz: {}", sz);
+            println!("Sz Decimals: {}", sz_decimals);
+
+            let asset = sz_decimals;
+
             let order = OrderRequest {
-                asset: asset.clone(),
+                asset,
                 is_buy: true,
                 limit_px: limit_px.clone(),
                 sz: sz.clone(),
@@ -587,7 +627,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 });
 
                 let order = OrderRequest {
-                    asset: asset.clone(),
+                    asset,
                     is_buy: true,
                     limit_px: limit_px.clone(),
                     sz: sz.clone(),

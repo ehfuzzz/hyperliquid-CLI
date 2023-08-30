@@ -17,25 +17,5 @@ async fn main() {
 
     let hyperliquid = HyperLiquid::new(wallet).await;
 
-    // let metadata = hyperliquid
-    //     .metadata()
-    //     .await
-    //     .expect("Failed to fetch metadata");
-
-    // let assets = metadata
-    //     .universe
-    //     .into_iter()
-    //     .map(|asset| (asset.name.to_uppercase(), asset.sz_decimals))
-    //     .collect::<HashMap<String, u32>>();
-
-    // println!("{:#?}", assets);
-
-    let asset_ctx = hyperliquid
-        .asset_ctx("BTC")
-        .await
-        .expect("Failed to fetch asset ctxs");
-
-    println!("{:#?}", asset_ctx);
-
-    // cli::cli(&settings, &hyperliquid).await;
+    cli::cli(&settings, &hyperliquid).await;
 }
