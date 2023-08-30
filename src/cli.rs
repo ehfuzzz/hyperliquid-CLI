@@ -548,14 +548,16 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             let take_profit = buy_matches.value_of("take_profit");
             let stop_loss = buy_matches.value_of("stop_loss");
 
-            let sz = order_size.unwrap_or_else(|| &config.default_size.size)[1..].to_string();
+            let sz = "0.01000000".to_string();
+            // order_size.unwrap_or_else(|| &config.default_size.size)[1..].to_string();
 
             let asset = 4;
             // asset
             //     .unwrap_or_else(|| &config.default_asset.value)
             //     .to_string();
 
-            let limit_px = limit_price.unwrap_or_default()[1..].to_string();
+            let limit_px = "1800.00000000".to_string();
+            // limit_price.unwrap_or_default()[1..].to_string();
 
             let triger_px = take_profit
                 .unwrap_or("0")
@@ -622,7 +624,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
             let res = hyperliquid.place_order(orders).await;
 
-            println!("{:?}", res);
+            println!("{:#?}", res);
         }
 
         ("sell", Some(sell_matches)) => {

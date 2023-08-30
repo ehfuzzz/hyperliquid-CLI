@@ -79,3 +79,35 @@ pub struct OrderResponse {
     pub type_name: String,
     pub data: OrderResponseData,
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase", tag = "status", content = "response")]
+pub enum ExchangeResponse {
+    Ok(OrderResponse),
+    Err(String),
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Asset {
+    pub name: String,
+    pub sz_decimals: u32,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Universe {
+    pub universe: Vec<Asset>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ctx {
+    pub mark_px: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AssetCtx {
+    Universe(Vec<Asset>),
+}
