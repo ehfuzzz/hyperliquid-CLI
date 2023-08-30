@@ -15,7 +15,7 @@ use serde_json::json;
 
 use crate::{
     helpers::float_to_int_for_hashing,
-    model::{AssetCtx, Ctx, ExchangeResponse, OrderRequest, OrderResponse, Universe},
+    model::{AssetCtx, Ctx, ExchangeResponse, OrderRequest, OrderResponse, Universe, OpenPositions},
 };
 
 // <https://eips.ethereum.org/EIPS/eip-712>
@@ -175,6 +175,17 @@ impl HyperLiquid {
         Ok(res)
     }
 
+    pub async fn open_positions(&self) -> Result<OpenPositions, anyhow::Error> {
+        let res = self
+            .info(json!({
+                    "type": "clearinghouseState",
+                    "user": self.wallet.address(),
+            }))
+            .await?;
+
+        Ok(res)
+    }    
+
     async fn info<R: for<'de> Deserialize<'de>>(
         &self,
         body: impl Serialize,
@@ -187,6 +198,11 @@ impl HyperLiquid {
             .await?
             .json()
             .await?;
+        //     .text()
+        //     .await?;
+
+        // print!("{:#?}", res);
+        // todo!("Implement info")
 
         Ok(res)
     }

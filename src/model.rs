@@ -1,5 +1,4 @@
-use serde::{Deserialize, Serialize};
-
+use serde::{Deserialize, Serialize,};
 use crate::helpers::float_to_int_for_hashing;
 
 #[derive(Serialize)]
@@ -132,3 +131,48 @@ pub enum AssetCtx {
     Universe(Universe),
     Ctx(Vec<Ctx>),
 }
+
+
+
+
+#[derive(Deserialize, Debug)]
+pub struct Leverage{
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub value: u32
+
+}
+
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+
+pub struct Position {
+    pub coin: String,
+    #[serde(default)] // Handle null values
+    pub entry_px: Option<String>,
+    pub leverage: Leverage,
+    // pub liquidation_px: String,
+    pub margin_used: String,
+    pub max_trade_szs: Vec<String>,
+    pub position_value : String,
+    pub return_on_equity: String,
+    pub szi: String,
+    pub unrealized_pnl: String,    
+
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PositionsResponse {
+    pub position: Position,
+    #[serde(rename = "type")]
+    pub type_: String
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPositions{
+    pub asset_positions: Vec<PositionsResponse>,
+
+}
+

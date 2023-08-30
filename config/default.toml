@@ -3,7 +3,7 @@ private_key = "0x..."
 
 [default_size]
 type = "risk" # risk | notional
-size = ""
+size = "$15"
 
 
 [default_leverage]
