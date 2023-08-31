@@ -7,7 +7,9 @@ use crate::helpers::{
     validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
 };
 use crate::hyperliquid::HyperLiquid;
-use crate::model::{Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType};
+use crate::model::{
+    AssetPosition, ClearingHouseState, Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType,
+};
 use crate::settings::Settings;
 
 pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
@@ -942,8 +944,27 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("Implement view unfilled orders logic");
             }
             Some("open") => {
-                let res = hyperliquid.clearing_house_state().await;
-                println!("{:#?}", res);
+                let state = hyperliquid.clearing_house_state().await.unwrap();
+
+                let open_positions = state
+                    .asset_positions
+                    .iter()
+                    .filter(|ap| ap.position.entry_px.is_some())
+                    .collect::<Vec<_>>();
+
+                let repeat = 35;
+                for ap in open_positions {
+                    let entry_position = ap.position.entry_px.as_ref().unwrap();
+
+                    println! ("{}", format!("{}", "_".repeat(repeat)));
+                    println!();
+                    println!("Asset: {}", ap.position.coin);
+                    println!("Entry Price: {:#?}", entry_position);
+                    println!("Position Size: {}", format!("{}",ap.position.szi));
+                    println!("Position Value: {}", format!("${}",ap.position.position_value));
+                    println!("Return on Equity: {}", format!("{}%", ap.position.return_on_equity));
+                    println!("Unrealized Pnl: {}",format!("${}", ap.position.unrealized_pnl));
+                }
             }
             _ => {
                 println!(
