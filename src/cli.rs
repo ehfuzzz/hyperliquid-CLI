@@ -927,7 +927,19 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                     .filter(|ap| ap.position.entry_px.is_some())
                     .collect::<Vec<_>>();
 
-                println!("{:#?}", open_positions);
+                let repeat = 35;
+                for ap in open_positions {
+                    let entry_position = ap.position.entry_px.as_ref().unwrap();
+
+                    println! ("{}", format!("{}", "_".repeat(repeat)));
+                    println!();
+                    println!("Asset: {}", ap.position.coin);
+                    println!("Entry Price: {:#?}", entry_position);
+                    println!("Position Size: {}", format!("{}",ap.position.szi));
+                    println!("Position Value: {}", format!("${}",ap.position.position_value));
+                    println!("Return on Equity: {}", format!("{}%", ap.position.return_on_equity));
+                    println!("Unrealized Pnl: {}",format!("${}", ap.position.unrealized_pnl));
+                }
             }
             _ => {
                 println!(
