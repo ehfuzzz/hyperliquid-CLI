@@ -1,4 +1,4 @@
 /target
 config/mainnet.toml
 config/testnet.toml
-notes.txt
+.vscode/

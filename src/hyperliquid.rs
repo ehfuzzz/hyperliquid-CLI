@@ -163,17 +163,6 @@ impl HyperLiquid {
         Ok(Some(ctxs[position].clone()))
     }
 
-    pub async fn pnl(&self) -> Result<Value, anyhow::Error> {
-        let res = self
-            .info(json!({
-                    "type": "userFills",
-                    "user": self.wallet.address(),
-            }))
-            .await?;
-
-        Ok(res)
-    }
-
     pub async fn clearing_house_state(&self) -> Result<ClearingHouseState, anyhow::Error> {
         let res = self
             .info(json!({
@@ -197,12 +186,6 @@ impl HyperLiquid {
             .await?
             .json()
             .await?;
-        //     .text()
-        //     .await?;
-
-        // print!("{:#?}", res);
-        // todo!("Implement info")
-
         Ok(res)
     }
 }
