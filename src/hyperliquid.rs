@@ -1,13 +1,12 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::time::SystemTime;
 
 use anyhow::Result;
 use config::Value;
 use ethers::{
-    abi::{AbiEncode, Hash},
+    abi::AbiEncode,
     contract::{Eip712, EthAbiType},
-    providers::Middleware,
-    signers::{LocalWallet, Signer, Wallet},
-    types::{transaction::eip712::Eip712, Address, Signature, H256},
+    signers::{LocalWallet, Signer},
+    types::{Address, Signature, H256},
     utils::keccak256,
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,7 @@ use serde_json::json;
 
 use crate::{
     helpers::float_to_int_for_hashing,
-    model::{AssetCtx, Ctx, ExchangeResponse, OrderRequest, OrderResponse, Universe, OpenPositions},
+    model::{AssetCtx, ClearingHouseState, Ctx, ExchangeResponse, OrderRequest, Universe},
 };
 
 // <https://eips.ethereum.org/EIPS/eip-712>
@@ -175,7 +174,7 @@ impl HyperLiquid {
         Ok(res)
     }
 
-    pub async fn open_positions(&self) -> Result<OpenPositions, anyhow::Error> {
+    pub async fn clearing_house_state(&self) -> Result<ClearingHouseState, anyhow::Error> {
         let res = self
             .info(json!({
                     "type": "clearinghouseState",
@@ -184,7 +183,7 @@ impl HyperLiquid {
             .await?;
 
         Ok(res)
-    }    
+    }
 
     async fn info<R: for<'de> Deserialize<'de>>(
         &self,

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize,};
 use crate::helpers::float_to_int_for_hashing;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -132,17 +132,12 @@ pub enum AssetCtx {
     Ctx(Vec<Ctx>),
 }
 
-
-
-
 #[derive(Deserialize, Debug)]
-pub struct Leverage{
+pub struct Leverage {
     #[serde(rename = "type")]
     pub type_: String,
-    pub value: u32
-
+    pub value: u32,
 }
-
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -155,24 +150,43 @@ pub struct Position {
     // pub liquidation_px: String,
     pub margin_used: String,
     pub max_trade_szs: Vec<String>,
-    pub position_value : String,
+    pub position_value: String,
     pub return_on_equity: String,
     pub szi: String,
-    pub unrealized_pnl: String,    
-
+    pub unrealized_pnl: String,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct PositionsResponse {
+pub struct AssetPositions {
     pub position: Position,
     #[serde(rename = "type")]
-    pub type_: String
+    pub type_: String,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct OpenPositions{
-    pub asset_positions: Vec<PositionsResponse>,
-
+pub struct MarginSummary {
+    pub account_value: String,
+    pub total_margin_used: String,
+    pub total_ntl_pos: String,
+    pub total_raw_usd: String,
+    // pub withdrawable: String,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CrossMarginSummary {
+    pub account_value: String,
+    pub total_margin_used: String,
+    pub total_ntl_pos: String,
+    pub total_raw_usd: String,
+    // pub withdrawable: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearingHouseState {
+    pub asset_positions: Vec<AssetPositions>,
+    pub margin_summary: MarginSummary,
+    pub cross_margin_summary: CrossMarginSummary,
+}

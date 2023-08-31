@@ -917,10 +917,8 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("Implement view unfilled orders logic");
             }
             Some("open") => {
-                println!("Implement view open positions logic");
-                let res = hyperliquid.open_positions().await;
+                let res = hyperliquid.clearing_house_state().await;
                 println!("{:#?}", res);
-
             }
             _ => {
                 println!(
