@@ -7,7 +7,7 @@ use crate::helpers::{
     validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
 };
 use crate::hyperliquid::HyperLiquid;
-use crate::model::{Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType};
+use crate::model::{Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType, ClearingHouseState, AssetPosition};
 use crate::settings::Settings;
 
 pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
@@ -917,8 +917,23 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("Implement view unfilled orders logic");
             }
             Some("open") => {
-                let res = hyperliquid.clearing_house_state().await;
-                println!("{:#?}", res);
+                let res : ClearingHouseState= hyperliquid.clearing_house_state().await.unwrap();
+                let all_positions = res.asset_positions;
+
+                //get only AssetPosition in  the vectors with AssetPosition.entry_px is_some()
+                let open_positions = all_positions
+                    .into_iter()
+                    .filter(|asset_position| asset_position.position.entry_px.is_some())
+                    .collect::<Vec<AssetPosition>>();
+
+                
+
+
+
+                
+
+
+                println!("{:#?}", open_positions);
             }
             _ => {
                 println!(
