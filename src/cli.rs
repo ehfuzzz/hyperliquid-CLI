@@ -11,7 +11,10 @@ use crate::helpers::{
     validate_value_size,
 };
 use crate::hyperliquid::HyperLiquid;
-use crate::model::{ Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType };
+
+use crate::model::{
+    AssetPosition, ClearingHouseState, Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType,
+};
 use crate::settings::Settings;
 
 pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
@@ -909,6 +912,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 }
             }
         }
+
         ("view", Some(view_matches)) =>
             match view_matches.subcommand_name() {
                 Some("pnl") => {
@@ -926,18 +930,64 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
                     println!("Total Unrealized PNL: ${:.4} ", total_unrealized_pnl);
                 }
-                Some("wallet") => {
-                    println!("Implement view wallet balance logic");
+             
+            Some("wallet") => {
+                let state = hyperliquid
+                    .clearing_house_state()
+                    .await
+                    .expect("Failed to fetch wallet balance");
+
+                let margin_summary = state.margin_summary;
+
+                let repeat = 35;
+                println!("{}", format!("{}", "-".repeat(repeat)));
+
+                println!("Margin Wallet Summary");
+                println!("{}", format!("{}", "-".repeat(repeat)));
+                println!("Account Value: {}", margin_summary.account_value);
+                println!("Total Margin Used: {}", margin_summary.total_margin_used);
+                println!("Total Ntl Position: {}", margin_summary.total_ntl_pos);
+                println!("Total Raw Usd : {}", margin_summary.total_raw_usd);
+
+                let cms = state.cross_margin_summary;
+
+                println!();
+                println!("Cross Margin Wallet Summary");
+                println!("{}", format!("{}", "-".repeat(repeat)));
+                println!("Account Value: {}", cms.account_value);
+                println!("Total Margin Used: {}", cms.total_margin_used);
+                println!("Total Ntl Position: {}", cms.total_ntl_pos);
+                println!("Total Raw Usd : {}", cms.total_raw_usd);
+            }
+            Some("unfilled") => {
+                println!("Implement view unfilled orders logic");
+            }
+            Some("open") => {
+                let state = hyperliquid.clearing_house_state().await.unwrap();
+
+                let open_positions = state
+                    .asset_positions
+                    .iter()
+                    .filter(|ap| ap.position.entry_px.is_some())
+                    .collect::<Vec<_>>();
+
+                let repeat = 35;
+                for ap in open_positions {
+                    let entry_position = ap.position.entry_px.as_ref().unwrap();
+
+                    println! ("{}", format!("{}", "_".repeat(repeat)));
+                    println!();
+                    println!("Asset: {}", ap.position.coin);
+                    println!("Entry Price: {:#?}", entry_position);
+                    println!("Position Size: {}", format!("{}",ap.position.szi));
+                    println!("Position Value: {}", format!("${}",ap.position.position_value));
+                    println!("Return on Equity: {}", format!("{}%", ap.position.return_on_equity));
+                    println!("Unrealized Pnl: {}",format!("${}", ap.position.unrealized_pnl));
                 }
-                Some("unfilled") => {
-                    println!("Implement view unfilled orders logic");
-                }
-                Some("open") => {
-                    let res = hyperliquid.clearing_house_state().await;
-                    println!("{:#?}", res);
-                }
-                _ => {
-                    println!(
+            }
+            _ => {
+                println!(
+
                         " Invalid command: expected commands: (view pnl, view wallet balance, view unfilled orders, view open positions"
                     );
                 }

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use ethers::signers::LocalWallet;
 use hyperliquid::{cli, hyperliquid::HyperLiquid, settings::Settings};
 use secrecy::ExposeSecret;
