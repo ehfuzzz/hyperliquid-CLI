@@ -911,7 +911,32 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("{:#?}", res);
             }
             Some("wallet") => {
-                println!("Implement view wallet balance logic");
+                let state = hyperliquid
+                    .clearing_house_state()
+                    .await
+                    .expect("Failed to fetch wallet balance");
+
+                let margin_summary = state.margin_summary;
+
+                let repeat = 35;
+                println!("{}", format!("{}", "-".repeat(repeat)));
+
+                println!("Margin Wallet Summary");
+                println!("{}", format!("{}", "-".repeat(repeat)));
+                println!("Account Value: {}", margin_summary.account_value);
+                println!("Total Margin Used: {}", margin_summary.total_margin_used);
+                println!("Total Ntl Position: {}", margin_summary.total_ntl_pos);
+                println!("Total Raw Usd : {}", margin_summary.total_raw_usd);
+
+                let cms = state.cross_margin_summary;
+
+                println!();
+                println!("Cross Margin Wallet Summary");
+                println!("{}", format!("{}", "-".repeat(repeat)));
+                println!("Account Value: {}", cms.account_value);
+                println!("Total Margin Used: {}", cms.total_margin_used);
+                println!("Total Ntl Position: {}", cms.total_ntl_pos);
+                println!("Total Raw Usd : {}", cms.total_raw_usd);
             }
             Some("unfilled") => {
                 println!("Implement view unfilled orders logic");
