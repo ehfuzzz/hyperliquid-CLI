@@ -157,7 +157,7 @@ pub struct Position {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct AssetPositions {
+pub struct AssetPosition {
     pub position: Position,
     #[serde(rename = "type")]
     pub type_: String,
@@ -186,7 +186,7 @@ pub struct CrossMarginSummary {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClearingHouseState {
-    pub asset_positions: Vec<AssetPositions>,
+    pub asset_positions: Vec<AssetPosition>,
     pub margin_summary: MarginSummary,
     pub cross_margin_summary: CrossMarginSummary,
 }
