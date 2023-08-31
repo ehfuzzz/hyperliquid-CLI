@@ -177,7 +177,7 @@ impl HyperLiquid {
     pub async fn get_unfilled_orders(&self) -> Result<Vec<UnfilledOrder>, anyhow::Error> {
         let res = self
             .info(json!({
-                    "type": "unfilledOrders",
+                    "type": "openOrders",
                     "user": self.wallet.address(),
             }))
             .await?;
