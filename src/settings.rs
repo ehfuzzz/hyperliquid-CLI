@@ -2,6 +2,8 @@ use config::{Config, ConfigError, File};
 use secrecy::Secret;
 use serde::Deserialize;
 
+use crate::types::MarginType;
+
 #[derive(Deserialize)]
 pub struct AccountConfig {
     pub private_key: Secret<String>,
@@ -24,7 +26,7 @@ pub enum SizeType {
 pub struct DefaultSizeConfig {
     #[serde(rename = "type")]
     pub type_name: SizeType,
-    pub size: String,
+    pub value: String,
 }
 
 #[derive(Deserialize)]
@@ -42,13 +44,6 @@ impl DefaultLeverageConfig {
         }
         self.value
     }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MarginType {
-    Cross,
-    Isolated,
 }
 
 #[derive(Deserialize)]

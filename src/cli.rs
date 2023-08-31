@@ -1,19 +1,21 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 //using version 2.33 not the latest one
 use clap::{App, Arg};
+use ethers::signers::LocalWallet;
+use secrecy::ExposeSecret;
 
 use crate::helpers::{
     validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
 };
-use crate::hyperliquid::HyperLiquid;
-
-use crate::model::{
-    AssetPosition, ClearingHouseState, Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType,
+use crate::hyperliquid::{
+    Exchange, HyperLiquid, Info, Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType,
 };
 use crate::settings::Settings;
+use crate::types::{LimitPrice, MarginType, OrderSize, TpSl};
 
-pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
+pub async fn cli(config: &Settings) {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -470,10 +472,19 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
         )
         .get_matches();
 
-    let metadata = hyperliquid
-        .metadata()
-        .await
-        .expect("Failed to fetch metadata");
+    let wallet = Arc::new(
+        config
+            .account
+            .private_key
+            .expose_secret()
+            .parse::<LocalWallet>()
+            .expect("Failed to parse private key"),
+    );
+
+    let info: Info = HyperLiquid::new(wallet.clone());
+    let exchange: Exchange = HyperLiquid::new(wallet.clone());
+
+    let metadata = info.metadata().await.expect("Failed to fetch metadata");
 
     let assets = metadata
         .universe
@@ -481,15 +492,13 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
         .map(|asset| (asset.name.to_uppercase(), asset.sz_decimals))
         .collect::<HashMap<String, u32>>();
 
-    println!("{:#?}", assets);
-
     match matches.subcommand() {
-        ("tp", Some(tp_matches)) => {
-            let percentage_order = tp_matches.value_of("percentage_order").unwrap();
-            let percentage_order: f64 = percentage_order
-                .trim_end_matches("%")
-                .parse::<f64>()
-                .unwrap();
+        ("tp", Some(_tp_matches)) => {
+            // let percentage_order = tp_matches.value_of("percentage_order").unwrap();
+            // let percentage_order: f64 = percentage_order
+            //     .trim_end_matches("%")
+            //     .parse::<f64>()
+            //     .unwrap();
 
             // let asset = tp_matches.value_of("asset").unwrap();
             // let asset: u32 = calculate_asset_to_id(&asset);
@@ -499,8 +508,6 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             // let sz: String = sz.to_string();
             // let reduce_only = false;
             // let is_buy: bool = get_side_from_oid(oid);
-
-            let limit_px = "1900";
 
             // match tp_price {
             //     tp_price
@@ -521,12 +528,12 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             //     }
             // }
         }
-        ("sl", Some(sl_matches)) => {
-            let percentage_order = sl_matches.value_of("percentage_order").unwrap();
-            let percentage_order: f64 = percentage_order
-                .trim_end_matches("%")
-                .parse::<f64>()
-                .unwrap();
+        ("sl", Some(_sl_matches)) => {
+            // let percentage_order = sl_matches.value_of("percentage_order").unwrap();
+            // let percentage_order: f64 = percentage_order
+            //     .trim_end_matches("%")
+            //     .parse::<f64>()
+            //     .unwrap();
 
             // let asset = sl_matches.value_of("asset").unwrap();
             // let asset: u32 = calculate_asset_to_id(&asset);
@@ -559,62 +566,91 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             //Handle Scale Buy  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
         }
 
-        ("buy", Some(buy_matches)) => {
-            let order_size = buy_matches.value_of("order_size");
-            let asset = buy_matches.value_of("asset");
-            let limit_price = buy_matches.value_of("limit_price");
-            let take_profit = buy_matches.value_of("take_profit");
-            let stop_loss = buy_matches.value_of("stop_loss");
+        ("buy", Some(matches)) => {
+            let order_size: OrderSize = matches
+                .value_of("order_size")
+                .unwrap_or(&config.default_size.value)
+                .try_into()
+                .expect("Failed to parse order size");
 
-            let asset = asset.unwrap_or_else(|| &config.default_asset.value);
+            let asset = matches
+                .value_of("asset")
+                .unwrap_or(&config.default_asset.value);
 
-            let triger_px = take_profit
-                .unwrap_or("0")
-                .parse::<f64>()
-                .expect("Expected a numeric value for take profit");
+            let limit_price: LimitPrice = matches
+                .value_of("limit_price")
+                .unwrap_or("@0")
+                .try_into()
+                .expect("Failed to parse limit price");
+
+            let tp: Option<TpSl> = matches.value_of("take_profit").map(|price| {
+                price.try_into().expect(
+                    "Invalid take profit value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            let sl: Option<TpSl> = matches.value_of("stop_loss").map(|price| {
+                price.try_into().expect(
+                    "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            // ----------------------------------------------
 
             let mut orders: Vec<OrderRequest> = Vec::new();
 
-            let order_type = OrderType::Limit(Limit { tif: Tif::Gtc });
+            let (order_type, limit_price) = match limit_price {
+                LimitPrice::Absolute(price) => {
+                    if price == 0.0 {
+                        // slippage of 3% for buy 'll be 103/100 = 1.03
+                        (OrderType::Limit(Limit { tif: Tif::Ioc }), price * 1.03)
+                    } else {
+                        (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
+                    }
+                }
+            };
 
-            let sz_decimals = *assets
-                .get(&asset.to_uppercase())
-                .expect("Failed to find asset");
-
-            let asset_ctx = hyperliquid
+            let asset_ctx = info
                 .asset_ctx(asset)
                 .await
                 .expect("Failed to fetch asset ctxs")
                 .expect("Failed to find asset");
 
-            let mark_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+            let price = asset_ctx.mark_px.parse::<f64>().unwrap();
 
-            let sz = {
-                let sz = order_size.unwrap_or_else(|| &config.default_size.size)[1..].to_string();
+            let sz = match order_size {
+                OrderSize::Absolute(sz) => sz,
+                OrderSize::Percent(sz) => {
+                    let state = info
+                        .clearing_house_state()
+                        .await
+                        .expect("Failed to fetch balance");
 
-                println!("Sz: {}", sz);
+                    let balance = match config.default_margin.value {
+                        MarginType::Cross => state.cross_margin_summary.account_value,
+                        MarginType::Isolated => state.margin_summary.account_value,
+                    };
 
-                let sz = sz
-                    .parse::<f64>()
-                    .expect("Expected a numeric value for order size");
+                    let balance = balance.parse::<f64>().expect("Failed to parse balance");
 
-                let sz = (sz / mark_price) as f64;
-
-                format!("{:.*}", sz_decimals as usize, sz)
+                    balance * (sz as f64 / 100.0)
+                }
             };
+            let decimals = *assets
+                .get(&asset.to_uppercase())
+                .expect("Failed to find asset");
 
-            let limit_px = limit_price.unwrap_or(&format!("@{}", mark_price))[1..].to_string();
+            let sz = format!("{:.*}", decimals as usize, sz / price);
 
-            println!("Limit Px: {}", limit_px);
             println!("Sz: {}", sz);
-            println!("Sz Decimals: {}", sz_decimals);
+            println!("Sz Decimals: {}", decimals);
 
-            let asset = sz_decimals;
+            let asset = decimals;
 
             let order = OrderRequest {
                 asset,
                 is_buy: true,
-                limit_px: limit_px.clone(),
+                limit_px: format!("{}", limit_price),
                 sz: sz.clone(),
                 reduce_only: false,
                 order_type,
@@ -622,17 +658,26 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
             orders.push(order);
 
-            if triger_px > 0.0 {
+            // tp
+            if tp.is_some() {
+                let trigger_price = match tp {
+                    Some(TpSl::Absolute(value)) => price + value,
+                    Some(TpSl::Percent(value)) => price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Fixed(value)) => value,
+
+                    None => unreachable!("Expected a take profit value"),
+                };
+
                 let order_type = OrderType::Trigger(Trigger {
-                    triger_px,
+                    triger_px: trigger_price,
                     is_market: true,
                     tpsl: TriggerType::Tp,
                 });
 
                 let order = OrderRequest {
                     asset,
-                    is_buy: true,
-                    limit_px: limit_px.clone(),
+                    is_buy: false,
+                    limit_px: format!("{}", trigger_price),
                     sz: sz.clone(),
                     reduce_only: false,
                     order_type,
@@ -641,23 +686,27 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 orders.push(order);
             }
 
-            let triger_px = stop_loss
-                .unwrap_or("0")
-                .parse::<f64>()
-                .expect("Expected a numeric value for stop loss");
+            // sl
+            if sl.is_some() {
+                let trigger_price = match sl {
+                    Some(TpSl::Absolute(value)) => price + value,
+                    Some(TpSl::Percent(value)) => price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Fixed(value)) => value,
 
-            if triger_px > 0.0 {
+                    None => unreachable!("Expected a stop loss value"),
+                };
+
                 let order_type = OrderType::Trigger(Trigger {
-                    triger_px,
+                    triger_px: trigger_price,
                     is_market: true,
                     tpsl: TriggerType::Sl,
                 });
 
                 let order = OrderRequest {
                     asset,
-                    is_buy: true,
-                    limit_px,
-                    sz,
+                    is_buy: false,
+                    limit_px: format!("{}", trigger_price),
+                    sz: sz.clone(),
                     reduce_only: false,
                     order_type,
                 };
@@ -665,93 +714,17 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 orders.push(order);
             }
 
-            let res = hyperliquid.place_order(orders).await;
+            let res = exchange.place_order(orders).await;
 
             println!("{:#?}", res);
         }
 
-        ("sell", Some(sell_matches)) => {
-            let order_size = sell_matches.value_of("order_size");
-            let asset = sell_matches.value_of("asset");
-            let limit_price = sell_matches.value_of("limit_price");
-            let take_profit = sell_matches.value_of("take_profit");
-            let stop_loss = sell_matches.value_of("stop_loss");
-
-            let sz = order_size
-                .unwrap_or_else(|| &config.default_size.size)
-                .to_string();
-
-            let asset = 4;
-            // asset
-            //     .unwrap_or_else(|| &config.default_asset.value)
-            //     .to_string();
-
-            let limit_px = limit_price.unwrap_or_default().to_string();
-
-            let triger_px = take_profit
-                .unwrap_or("0")
-                .parse::<f64>()
-                .expect("Expected a numeric value for take profit");
-
-            let mut orders: Vec<OrderRequest> = Vec::new();
-
-            let order_type = OrderType::Limit(Limit { tif: Tif::Gtc });
-
-            let order = OrderRequest {
-                asset: asset.clone(),
-                is_buy: false,
-                limit_px: limit_px.clone(),
-                sz: sz.clone(),
-                reduce_only: false,
-                order_type,
-            };
-
-            orders.push(order);
-
-            if triger_px > 0.0 {
-                let order_type = OrderType::Trigger(Trigger {
-                    triger_px,
-                    is_market: true,
-                    tpsl: TriggerType::Tp,
-                });
-
-                let order = OrderRequest {
-                    asset: asset.clone(),
-                    is_buy: false,
-                    limit_px: limit_px.clone(),
-                    sz: sz.clone(),
-                    reduce_only: false,
-                    order_type,
-                };
-
-                orders.push(order);
-            }
-
-            let triger_px = stop_loss
-                .unwrap_or("0")
-                .parse::<f64>()
-                .expect("Expected a numeric value for stop loss");
-
-            if triger_px > 0.0 {
-                let order_type = OrderType::Trigger(Trigger {
-                    triger_px,
-                    is_market: true,
-                    tpsl: TriggerType::Sl,
-                });
-
-                let order = OrderRequest {
-                    asset,
-                    is_buy: false,
-                    limit_px,
-                    sz,
-                    reduce_only: false,
-                    order_type,
-                };
-
-                orders.push(order);
-            }
-
-            hyperliquid.place_order(orders).await;
+        ("sell", Some(_sell_matches)) => {
+            // let order_size = sell_matches.value_of("order_size");
+            // let asset = sell_matches.value_of("asset");
+            // let limit_price = sell_matches.value_of("limit_price");
+            // let take_profit = sell_matches.value_of("take_profit");
+            // let stop_loss = sell_matches.value_of("stop_loss");
         }
 
         ("scale", Some(scale_matches)) => {
@@ -910,7 +883,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
         ("view", Some(view_matches)) => match view_matches.subcommand_name() {
             Some("pnl") => {
-                let state = hyperliquid
+                let state = info
                     .clearing_house_state()
                     .await
                     .expect("Failed to fetch pnl");
@@ -930,7 +903,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             }
 
             Some("wallet") => {
-                let state = hyperliquid
+                let state = info
                     .clearing_house_state()
                     .await
                     .expect("Failed to fetch wallet balance");
@@ -958,7 +931,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("Total Raw Usd : {}", cms.total_raw_usd);
             }
             Some("unfilled") => {
-                let unfilled_orders = hyperliquid.open_orders().await.unwrap();
+                let unfilled_orders = info.open_orders().await.unwrap();
                 let repeat = 35;
                 for order in unfilled_orders.iter() {
                     println!("{}", format!("{}", "_".repeat(repeat)));
@@ -968,9 +941,12 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                     println!("Side: {}", if order.side == "B" { "Buy" } else { "Sell" });
                     println!("Size: {} {}", order.sz, order.coin);
                 }
+
+                println!("{}", format!("{}", "_".repeat(repeat)));
+                println!("\nTotal Unfilled Orders: {}", unfilled_orders.len());
             }
             Some("open") => {
-                let state = hyperliquid.clearing_house_state().await.unwrap();
+                let state = info.clearing_house_state().await.unwrap();
 
                 let open_positions = state
                     .asset_positions
@@ -979,27 +955,30 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                     .collect::<Vec<_>>();
 
                 let repeat = 35;
-                for ap in open_positions {
-                    let entry_position = ap.position.entry_px.as_ref().unwrap();
+                for op in open_positions.iter() {
+                    let entry_position = op.position.entry_px.as_ref().unwrap();
 
                     println!("{}", format!("{}", "_".repeat(repeat)));
                     println!();
-                    println!("Asset: {}", ap.position.coin);
+                    println!("Asset: {}", op.position.coin);
                     println!("Entry Price: {:#?}", entry_position);
-                    println!("Position Size: {}", format!("{}", ap.position.szi));
+                    println!("Position Size: {}", format!("{}", op.position.szi));
                     println!(
                         "Position Value: {}",
-                        format!("${}", ap.position.position_value)
+                        format!("${}", op.position.position_value)
                     );
                     println!(
                         "Return on Equity: {}",
-                        format!("{}%", ap.position.return_on_equity)
+                        format!("{}%", op.position.return_on_equity)
                     );
                     println!(
                         "Unrealized Pnl: {}",
-                        format!("${}", ap.position.unrealized_pnl)
+                        format!("${}", op.position.unrealized_pnl)
                     );
                 }
+
+                println!("{}", format!("{}", "_".repeat(repeat)));
+                println!("\nTotal Open Positions: {}", open_positions.len());
             }
             _ => {
                 println!(
