@@ -2,3 +2,4 @@
 config/mainnet.toml
 config/testnet.toml
 .vscode
+notes.txt

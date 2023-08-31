@@ -191,3 +191,13 @@ pub struct ClearingHouseState {
     pub margin_summary: MarginSummary,
     pub cross_margin_summary: CrossMarginSummary,
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UnfilledOrder {
+    pub coin: String,
+    pub limit_px: String,
+    pub oid: u64,
+    pub side: String,
+    pub sz: String,
+}
