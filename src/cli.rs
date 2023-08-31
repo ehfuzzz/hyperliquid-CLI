@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 
 //using version 2.33 not the latest one
-use clap::{App, Arg};
+use clap::{ App, Arg };
 
 use crate::helpers::{
-    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
+    validate_limit_price,
+    validate_sl_price,
+    validate_tp_price,
+    validate_value,
+    validate_value_size,
 };
 use crate::hyperliquid::HyperLiquid;
-use crate::model::{Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType};
+use crate::model::{ Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType };
 use crate::settings::Settings;
 
 pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
@@ -467,13 +471,9 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
         )
         .get_matches();
 
-    let metadata = hyperliquid
-        .metadata()
-        .await
-        .expect("Failed to fetch metadata");
+    let metadata = hyperliquid.metadata().await.expect("Failed to fetch metadata");
 
-    let assets = metadata
-        .universe
+    let assets = metadata.universe
         .into_iter()
         .map(|asset| (asset.name.to_uppercase(), asset.sz_decimals))
         .collect::<HashMap<String, u32>>();
@@ -574,13 +574,10 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
             let order_type = OrderType::Limit(Limit { tif: Tif::Gtc });
 
-            let sz_decimals = *assets
-                .get(&asset.to_uppercase())
-                .expect("Failed to find asset");
+            let sz_decimals = *assets.get(&asset.to_uppercase()).expect("Failed to find asset");
 
             let asset_ctx = hyperliquid
-                .asset_ctx(asset)
-                .await
+                .asset_ctx(asset).await
                 .expect("Failed to fetch asset ctxs")
                 .expect("Failed to find asset");
 
@@ -591,9 +588,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
 
                 println!("Sz: {}", sz);
 
-                let sz = sz
-                    .parse::<f64>()
-                    .expect("Expected a numeric value for order size");
+                let sz = sz.parse::<f64>().expect("Expected a numeric value for order size");
 
                 let sz = (sz / mark_price) as f64;
 
@@ -636,7 +631,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 };
 
                 orders.push(order);
-            };
+            }
 
             let triger_px = stop_loss
                 .unwrap_or("0")
@@ -660,7 +655,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 };
 
                 orders.push(order);
-            };
+            }
 
             let res = hyperliquid.place_order(orders).await;
 
@@ -674,9 +669,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
             let take_profit = sell_matches.value_of("take_profit");
             let stop_loss = sell_matches.value_of("stop_loss");
 
-            let sz = order_size
-                .unwrap_or_else(|| &config.default_size.size)
-                .to_string();
+            let sz = order_size.unwrap_or_else(|| &config.default_size.size).to_string();
 
             let asset = 4;
             // asset
@@ -722,7 +715,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 };
 
                 orders.push(order);
-            };
+            }
 
             let triger_px = stop_loss
                 .unwrap_or("0")
@@ -746,7 +739,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 };
 
                 orders.push(order);
-            };
+            }
 
             hyperliquid.place_order(orders).await;
         }
@@ -761,13 +754,16 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                         .collect();
 
                     let asset = scale_buy_matches.value_of("asset").unwrap();
-                    let lower_price_bracket =
-                        scale_buy_matches.value_of("lower_price_bracket").unwrap();
-                    let upper_price_bracket =
-                        scale_buy_matches.value_of("upper_price_bracket").unwrap();
+                    let lower_price_bracket = scale_buy_matches
+                        .value_of("lower_price_bracket")
+                        .unwrap();
+                    let upper_price_bracket = scale_buy_matches
+                        .value_of("upper_price_bracket")
+                        .unwrap();
 
-                    let converted_total_order_size = total_order_size[0].parse::<f64>().unwrap()
-                        / total_order_size[1].parse::<f64>().unwrap();
+                    let converted_total_order_size =
+                        total_order_size[0].parse::<f64>().unwrap() /
+                        total_order_size[1].parse::<f64>().unwrap();
 
                     let interval = total_order_size[1].parse::<f64>().unwrap();
 
@@ -798,13 +794,16 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                         .collect();
 
                     let asset = scale_sell_matches.value_of("asset").unwrap();
-                    let lower_price_bracket =
-                        scale_sell_matches.value_of("lower_price_bracket").unwrap();
-                    let upper_price_bracket =
-                        scale_sell_matches.value_of("upper_price_bracket").unwrap();
+                    let lower_price_bracket = scale_sell_matches
+                        .value_of("lower_price_bracket")
+                        .unwrap();
+                    let upper_price_bracket = scale_sell_matches
+                        .value_of("upper_price_bracket")
+                        .unwrap();
 
-                    let converted_total_order_size = total_order_size[0].parse::<f64>().unwrap()
-                        / total_order_size[1].parse::<f64>().unwrap();
+                    let converted_total_order_size =
+                        total_order_size[0].parse::<f64>().unwrap() /
+                        total_order_size[1].parse::<f64>().unwrap();
 
                     let interval = total_order_size[1].parse::<f64>().unwrap();
 
@@ -854,15 +853,18 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                         intervals.get(0)
                     );
 
-                    let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Interval Value");
+                    let interval_minutes: f64 = intervals[0]
+                        .parse()
+                        .expect("Invalid Interval Value");
                     let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
 
                     let amount_asset = order_size / interval_range;
 
                     println!(
                         "Buying {} {} at intervals of {} minutes ",
-                        amount_asset, asset, interval_minutes
+                        amount_asset,
+                        asset,
+                        interval_minutes
                     );
 
                     //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
@@ -888,15 +890,18 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                         intervals.get(0)
                     );
 
-                    let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Internal Value");
+                    let interval_minutes: f64 = intervals[0]
+                        .parse()
+                        .expect("Invalid Internal Value");
                     let interval_range: f64 = intervals[1].parse().expect("Invalid Interval Value");
 
                     let amount_asset = order_size / interval_range;
 
                     println!(
                         "Selling {} {} at intervals of {} minutes",
-                        amount_asset, asset, interval_minutes
+                        amount_asset,
+                        asset,
+                        interval_minutes
                     );
                 }
                 _ => {
@@ -904,54 +909,69 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 }
             }
         }
-        ("view", Some(view_matches)) => match view_matches.subcommand_name() {
-            Some("pnl") => {
-                let res = hyperliquid.pnl().await;
+        ("view", Some(view_matches)) =>
+            match view_matches.subcommand_name() {
+                Some("pnl") => {
+                    let res = hyperliquid.clearing_house_state().await.unwrap();
 
-                println!("{:#?}", res);
-            }
-            Some("wallet") => {
-                println!("Implement view wallet balance logic");
-            }
-            Some("unfilled") => {
-                println!("Implement view unfilled orders logic");
-            }
-            Some("open") => {
-                let res = hyperliquid.clearing_house_state().await;
-                println!("{:#?}", res);
-            }
-            _ => {
-                println!(
+                    let open_positions = res.asset_positions
+                        .iter()
+                        .filter(|ap| ap.position.entry_px.is_some())
+                        .collect::<Vec<_>>();
+
+                    let total_unrealized_pnl: f64 = open_positions
+                        .iter()
+                        .map(|ap| ap.position.unrealized_pnl.parse::<f64>().unwrap_or(0.0))
+                        .sum();
+
+                    println!("Total Unrealized PNL: ${:.4} ", total_unrealized_pnl);
+                }
+                Some("wallet") => {
+                    println!("Implement view wallet balance logic");
+                }
+                Some("unfilled") => {
+                    println!("Implement view unfilled orders logic");
+                }
+                Some("open") => {
+                    let res = hyperliquid.clearing_house_state().await;
+                    println!("{:#?}", res);
+                }
+                _ => {
+                    println!(
                         " Invalid command: expected commands: (view pnl, view wallet balance, view unfilled orders, view open positions"
                     );
+                }
             }
-        },
 
         ("pair", Some(pair_matches)) => {
             //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
 
             match pair_matches.subcommand() {
                 ("buy", Some(buy_matches)) => {
-                    let order_size = buy_matches
-                        .value_of("order_size")
+                    let order_size =
+                        buy_matches.value_of("order_size").unwrap().parse::<f64>().unwrap() / 2.0;
+                    let pair: Vec<&str> = buy_matches
+                        .value_of("pair")
                         .unwrap()
-                        .parse::<f64>()
-                        .unwrap()
-                        / 2.0;
-                    let pair: Vec<&str> =
-                        buy_matches.value_of("pair").unwrap().split("/").collect();
+                        .split("/")
+                        .collect();
 
                     let limit_price = buy_matches.value_of("limit_price");
                     let stop_loss = buy_matches.value_of("stop_loss");
                     let take_profit = buy_matches.value_of("take_profit");
-                    let pair_one: String =
-                        pair[0].parse().expect("Expected a valid string literal");
-                    let pair_two: String =
-                        pair[1].parse().expect("Expected a valid string literal");
+                    let pair_one: String = pair[0]
+                        .parse()
+                        .expect("Expected a valid string literal");
+                    let pair_two: String = pair[1]
+                        .parse()
+                        .expect("Expected a valid string literal");
 
                     println!(
                         "Longing {} {} and shorting {} {}",
-                        order_size, pair_one, order_size, pair_two
+                        order_size,
+                        pair_one,
+                        order_size,
+                        pair_two
                     );
 
                     if let Some(lp) = limit_price {
@@ -973,26 +993,30 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                     //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
                 }
                 ("sell", Some(sell_matches)) => {
-                    let order_size = sell_matches
-                        .value_of("order_size")
+                    let order_size =
+                        sell_matches.value_of("order_size").unwrap().parse::<f64>().unwrap() / 2.0;
+                    let pair: Vec<&str> = sell_matches
+                        .value_of("pair")
                         .unwrap()
-                        .parse::<f64>()
-                        .unwrap()
-                        / 2.0;
-                    let pair: Vec<&str> =
-                        sell_matches.value_of("pair").unwrap().split("/").collect();
+                        .split("/")
+                        .collect();
 
                     let limit_price = sell_matches.value_of("limit_price");
                     let stop_loss = sell_matches.value_of("stop_loss");
                     let take_profit = sell_matches.value_of("take_profit");
-                    let pair_one: String =
-                        pair[0].parse().expect("Expected a valid string literal");
-                    let pair_two: String =
-                        pair[1].parse().expect("Expected a valid string literal");
+                    let pair_one: String = pair[0]
+                        .parse()
+                        .expect("Expected a valid string literal");
+                    let pair_two: String = pair[1]
+                        .parse()
+                        .expect("Expected a valid string literal");
 
                     println!(
                         "Shorting {} {} and Longing {} {}",
-                        order_size, pair_one, order_size, pair_two
+                        order_size,
+                        pair_one,
+                        order_size,
+                        pair_two
                     );
 
                     if let Some(lp) = limit_price {
