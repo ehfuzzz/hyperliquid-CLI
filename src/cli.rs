@@ -958,7 +958,16 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("Total Raw Usd : {}", cms.total_raw_usd);
             }
             Some("unfilled") => {
-                println!("Implement view unfilled orders logic");
+                let unfilled_orders = hyperliquid.unfilled_orders().await.unwrap();
+                let repeat = 35;
+                for order in unfilled_orders.iter() {
+                    println!("{}", format!("{}", "_".repeat(repeat)));
+                    println!();
+                    println!("Asset: {}", order.coin);
+                    println!("Limit Price: {}", order.limit_px);
+                    println!("Side: {}", if order.side == "B" { "Buy" } else { "Sell" });
+                    println!("Size: {} {}", order.sz, order.coin);
+                }
             }
             Some("open") => {
                 let state = hyperliquid.clearing_house_state().await.unwrap();
