@@ -14,7 +14,9 @@ use serde_json::json;
 
 use crate::{
     helpers::float_to_int_for_hashing,
-    model::{AssetCtx, ClearingHouseState, Ctx, ExchangeResponse, OrderRequest, Universe, UnfilledOrder},
+    model::{
+        AssetCtx, ClearingHouseState, Ctx, ExchangeResponse, OrderRequest, UnfilledOrder, Universe,
+    },
 };
 
 // <https://eips.ethereum.org/EIPS/eip-712>
@@ -61,58 +63,20 @@ impl HyperLiquid {
     ) -> Result<ExchangeResponse, anyhow::Error> {
         println!("Placing order for {}", self.wallet.address());
 
-        let now = SystemTime::now();
-        let timestamp = now
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect(
-                "Time wen
-            t backwards",
-            )
-            .as_millis();
+        let nonce = self.timestamp();
 
-        let connection_id = {
-            let mut hashable_tuples = Vec::new();
-
-            for order in orders.iter() {
-                let order_type = order.get_type();
-
-                let order = (
-                    order.asset,
-                    order.is_buy,
-                    float_to_int_for_hashing(
-                        order.limit_px.parse().expect("Failed to parse limit_px"),
-                    ),
-                    float_to_int_for_hashing(order.sz.parse().expect("Failed to parse sz")),
-                    order.reduce_only,
-                    order_type.0,
-                    order_type.1,
-                );
-
-                hashable_tuples.push(order);
-            }
-
-            let grouping: i32 = 0;
-            let vault_address = Address::zero();
-            keccak256((hashable_tuples, grouping, vault_address, timestamp).encode()).into()
-        };
-
-        let signature = self.signature(connection_id).await;
+        let connection_id = self.connection_id(&orders, nonce);
 
         let res = self
-            .client
-            .post("https://api.hyperliquid-testnet.xyz/exchange")
-            .json(&json!({
+            .exchange(json!({
                 "action": {
                     "type": "order",
                     "grouping": "na",
                     "orders": orders,
                 },
-                "nonce": timestamp,
-                "signature": signature,
+                "nonce": nonce,
+                "signature": self.signature(connection_id).await,
             }))
-            .send()
-            .await?
-            .json()
             .await?;
 
         Ok(res)
@@ -174,7 +138,7 @@ impl HyperLiquid {
         Ok(res)
     }
 
-    pub async fn get_unfilled_orders(&self) -> Result<Vec<UnfilledOrder>, anyhow::Error> {
+    pub async fn open_orders(&self) -> Result<Vec<UnfilledOrder>, anyhow::Error> {
         let res = self
             .info(json!({
                     "type": "openOrders",
@@ -185,12 +149,25 @@ impl HyperLiquid {
         Ok(res)
     }
 
-    
-
-    async fn info<R: for<'de> Deserialize<'de>>(
+    async fn exchange<T: for<'de> Deserialize<'de>>(
         &self,
         body: impl Serialize,
-    ) -> Result<R, anyhow::Error> {
+    ) -> Result<T, anyhow::Error> {
+        let res = self
+            .client
+            .post("https://api.hyperliquid-testnet.xyz/exchange")
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(res)
+    }
+
+    async fn info<T: for<'de> Deserialize<'de>>(
+        &self,
+        body: impl Serialize,
+    ) -> Result<T, anyhow::Error> {
         let res = self
             .client
             .post("https://api.hyperliquid-testnet.xyz/info")
@@ -201,5 +178,36 @@ impl HyperLiquid {
             .await?;
         Ok(res)
     }
-}
 
+    fn connection_id(&self, orders: &Vec<OrderRequest>, nonce: u128) -> H256 {
+        let hashable_tuples = orders
+            .iter()
+            .map(|order| {
+                let order_type = order.get_type();
+
+                (
+                    order.asset,
+                    order.is_buy,
+                    float_to_int_for_hashing(
+                        order.limit_px.parse().expect("Failed to parse limit_px"),
+                    ),
+                    float_to_int_for_hashing(order.sz.parse().expect("Failed to parse sz")),
+                    order.reduce_only,
+                    order_type.0,
+                    order_type.1,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let grouping: i32 = 0;
+        let vault_address = Address::zero();
+        keccak256((hashable_tuples, grouping, vault_address, nonce).encode()).into()
+    }
+
+    fn timestamp(&self) -> u128 {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    }
+}
