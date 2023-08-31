@@ -958,7 +958,7 @@ pub async fn cli(config: &Settings, hyperliquid: &HyperLiquid) {
                 println!("Total Raw Usd : {}", cms.total_raw_usd);
             }
             Some("unfilled") => {
-                let unfilled_orders = hyperliquid.unfilled_orders().await.unwrap();
+                let unfilled_orders = hyperliquid.get_unfilled_orders().await.unwrap();
                 let repeat = 35;
                 for order in unfilled_orders.iter() {
                     println!("{}", format!("{}", "_".repeat(repeat)));

@@ -14,7 +14,7 @@ use serde_json::json;
 
 use crate::{
     helpers::float_to_int_for_hashing,
-    model::{AssetCtx, ClearingHouseState, Ctx, ExchangeResponse, OrderRequest, Universe},
+    model::{AssetCtx, ClearingHouseState, Ctx, ExchangeResponse, OrderRequest, Universe, UnfilledOrder},
 };
 
 // <https://eips.ethereum.org/EIPS/eip-712>
@@ -174,6 +174,19 @@ impl HyperLiquid {
         Ok(res)
     }
 
+    pub async fn get_unfilled_orders(&self) -> Result<Vec<UnfilledOrder>, anyhow::Error> {
+        let res = self
+            .info(json!({
+                    "type": "unfilledOrders",
+                    "user": self.wallet.address(),
+            }))
+            .await?;
+
+        Ok(res)
+    }
+
+    
+
     async fn info<R: for<'de> Deserialize<'de>>(
         &self,
         body: impl Serialize,
@@ -189,3 +202,4 @@ impl HyperLiquid {
         Ok(res)
     }
 }
+
