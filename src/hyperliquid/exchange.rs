@@ -56,6 +56,19 @@ impl Exchange {
 
         let connection_id = self.connection_id(&orders, nonce);
 
+        println!(
+            "{:#?}",
+            json!({
+                "action": {
+                    "type": "order",
+                    "grouping": "na",
+                    "orders": orders,
+                },
+                "nonce": nonce,
+                "signature": self.signature(connection_id).await,
+            })
+        );
+
         let res = self
             .exchange(json!({
                 "action": {

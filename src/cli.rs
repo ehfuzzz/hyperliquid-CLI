@@ -599,24 +599,27 @@ pub async fn cli(config: &Settings) {
 
             let mut orders: Vec<OrderRequest> = Vec::new();
 
-            let (order_type, limit_price) = match limit_price {
-                LimitPrice::Absolute(price) => {
-                    if price == 0.0 {
-                        // slippage of 3% for buy 'll be 103/100 = 1.03
-                        (OrderType::Limit(Limit { tif: Tif::Ioc }), price * 1.03)
-                    } else {
-                        (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
-                    }
-                }
-            };
-
             let asset_ctx = info
                 .asset_ctx(asset)
                 .await
                 .expect("Failed to fetch asset ctxs")
                 .expect("Failed to find asset");
 
-            let price = asset_ctx.mark_px.parse::<f64>().unwrap();
+            let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+
+            let (order_type, limit_price) = match limit_price {
+                LimitPrice::Absolute(price) => {
+                    if price == 0.0 {
+                        // slippage of 3% for buy 'll be 103/100 = 1.03
+                        (
+                            OrderType::Limit(Limit { tif: Tif::Ioc }),
+                            market_price * 1.03,
+                        )
+                    } else {
+                        (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
+                    }
+                }
+            };
 
             let sz = match order_size {
                 OrderSize::Absolute(sz) => sz,
@@ -640,7 +643,7 @@ pub async fn cli(config: &Settings) {
                 .get(&asset.to_uppercase())
                 .expect("Failed to find asset");
 
-            let sz = format!("{:.*}", decimals as usize, sz / price);
+            let sz = format!("{:.*}", decimals as usize, sz / market_price);
 
             println!("Sz: {}", sz);
             println!("Sz Decimals: {}", decimals);
@@ -650,7 +653,7 @@ pub async fn cli(config: &Settings) {
             let order = OrderRequest {
                 asset,
                 is_buy: true,
-                limit_px: format!("{}", limit_price),
+                limit_px: format!("{:.*}", asset as usize, limit_price),
                 sz: sz.clone(),
                 reduce_only: false,
                 order_type,
@@ -661,8 +664,8 @@ pub async fn cli(config: &Settings) {
             // tp
             if tp.is_some() {
                 let trigger_price = match tp {
-                    Some(TpSl::Absolute(value)) => price + value,
-                    Some(TpSl::Percent(value)) => price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Absolute(value)) => limit_price + value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
                     Some(TpSl::Fixed(value)) => value,
 
                     None => unreachable!("Expected a take profit value"),
@@ -677,7 +680,7 @@ pub async fn cli(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: false,
-                    limit_px: format!("{}", trigger_price),
+                    limit_px: format!("{:.*}", asset as usize, trigger_price),
                     sz: sz.clone(),
                     reduce_only: false,
                     order_type,
@@ -689,8 +692,8 @@ pub async fn cli(config: &Settings) {
             // sl
             if sl.is_some() {
                 let trigger_price = match sl {
-                    Some(TpSl::Absolute(value)) => price + value,
-                    Some(TpSl::Percent(value)) => price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Absolute(value)) => limit_price + value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
                     Some(TpSl::Fixed(value)) => value,
 
                     None => unreachable!("Expected a stop loss value"),
@@ -705,7 +708,7 @@ pub async fn cli(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: false,
-                    limit_px: format!("{}", trigger_price),
+                    limit_px: format!("{:.*}", asset as usize, trigger_price),
                     sz: sz.clone(),
                     reduce_only: false,
                     order_type,
