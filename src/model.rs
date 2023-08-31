@@ -163,6 +163,7 @@ pub struct AssetPosition {
     pub type_: String,
 }
 
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MarginSummary {
