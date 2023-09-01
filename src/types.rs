@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub enum OrderSize {
     Percent(u8),
     Absolute(f64),
@@ -10,7 +11,19 @@ impl TryFrom<&str> for OrderSize {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.trim();
-        let (size, unit) = value.split_at(value.len() - 1);
+        let (size, unit) = {
+            let r = value.split("%").collect::<Vec<&str>>();
+
+            (r[0], *r.get(1).unwrap_or(&""))
+        };
+
+        let size = if size.starts_with("$") {
+            let (_, size) = size.split_at(1);
+            size
+        } else {
+            size
+        };
+
         let size = size.parse::<f64>().map_err(|_| "Invalid size")?;
         match unit {
             "%" => Ok(OrderSize::Percent(size as u8)),
@@ -29,7 +42,14 @@ impl TryFrom<&str> for LimitPrice {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.trim();
         // e.g @100 to buy at 100
-        let (_, value) = value.split_at(1);
+
+        let value = if value.starts_with("@") {
+            let (_, value) = value.split_at(1);
+            value
+        } else {
+            value
+        };
+
         let value = value.parse::<f64>().map_err(|_| "Invalid price")?;
 
         Ok(LimitPrice::Absolute(value))
@@ -68,4 +88,13 @@ impl TryFrom<&str> for TpSl {
 pub enum MarginType {
     Cross,
     Isolated,
+}
+
+impl ToString for MarginType {
+    fn to_string(&self) -> String {
+        match self {
+            MarginType::Cross => "cross".to_string(),
+            MarginType::Isolated => "isolated".to_string(),
+        }
+    }
 }

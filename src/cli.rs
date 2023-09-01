@@ -7,10 +7,12 @@ use ethers::signers::LocalWallet;
 use secrecy::ExposeSecret;
 
 use crate::helpers::{
-    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
+    format_limit_price, format_size, validate_limit_price, validate_sl_price, validate_tp_price,
+    validate_value, validate_value_size,
 };
 use crate::hyperliquid::{
-    Exchange, HyperLiquid, Info, Limit, OrderRequest, OrderType, Tif, Trigger, TriggerType,
+    Exchange, ExchangeResponse, HyperLiquid, Info, Limit, OrderRequest, OrderType, Tif, Trigger,
+    TriggerType,
 };
 use crate::settings::Settings;
 use crate::types::{LimitPrice, MarginType, OrderSize, TpSl};
@@ -108,18 +110,7 @@ pub async fn cli(config: &Settings) {
                         .help("Limit price e.g ., @1900")
                         .long("price")
                         .takes_value(true)
-                        .validator(|v| {
-                            if v.starts_with("@") {
-                                /*    If the parsing is successful, it returns Ok(()) (indicating success but discarding the float).
-                                        If the parsing fails, it returns an error message as a String. */
-                                v[1..]
-                                    .parse::<f64>()
-                                    .map(|_| ())
-                                    .map_err(|e| e.to_string())
-                            } else {
-                                Err(String::from("Expected an @ symbol at the start"))
-                            }
-                        })
+                        .validator(validate_limit_price)
                 )
                 .arg(
                     Arg::with_name("take_profit")
@@ -489,8 +480,9 @@ pub async fn cli(config: &Settings) {
     let assets = metadata
         .universe
         .into_iter()
-        .map(|asset| (asset.name.to_uppercase(), asset.sz_decimals))
-        .collect::<HashMap<String, u32>>();
+        .enumerate()
+        .map(|(i, asset)| (asset.name.to_uppercase(), (asset.sz_decimals, i as u32)))
+        .collect::<HashMap<String, (u32, u32)>>();
 
     match matches.subcommand() {
         ("tp", Some(_tp_matches)) => {
@@ -573,7 +565,7 @@ pub async fn cli(config: &Settings) {
                 .try_into()
                 .expect("Failed to parse order size");
 
-            let asset = matches
+            let symbol = matches
                 .value_of("asset")
                 .unwrap_or(&config.default_asset.value);
 
@@ -597,15 +589,17 @@ pub async fn cli(config: &Settings) {
 
             // ----------------------------------------------
 
-            let mut orders: Vec<OrderRequest> = Vec::new();
-
             let asset_ctx = info
-                .asset_ctx(asset)
+                .asset_ctx(symbol)
                 .await
                 .expect("Failed to fetch asset ctxs")
                 .expect("Failed to find asset");
 
             let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+
+            println!("Market price: {}", market_price);
+
+            let slippage = 3.0 / 100.0;
 
             let (order_type, limit_price) = match limit_price {
                 LimitPrice::Absolute(price) => {
@@ -613,7 +607,7 @@ pub async fn cli(config: &Settings) {
                         // slippage of 3% for buy 'll be 103/100 = 1.03
                         (
                             OrderType::Limit(Limit { tif: Tif::Ioc }),
-                            market_price * 1.03,
+                            market_price * (1.0 + slippage),
                         )
                     } else {
                         (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
@@ -639,27 +633,54 @@ pub async fn cli(config: &Settings) {
                     balance * (sz as f64 / 100.0)
                 }
             };
-            let decimals = *assets
-                .get(&asset.to_uppercase())
+            let (sz_decimals, asset) = *assets
+                .get(&symbol.to_uppercase())
                 .expect("Failed to find asset");
 
-            let sz = format!("{:.*}", decimals as usize, sz / market_price);
+            // convert $sz to base asset
+            let sz = sz / market_price;
 
-            println!("Sz: {}", sz);
-            println!("Sz Decimals: {}", decimals);
-
-            let asset = decimals;
+            println!("{}", "---".repeat(20));
+            // FIXME: update_leverage(&exchange, &config).await;
+            println!("{}", "---".repeat(20));
 
             let order = OrderRequest {
                 asset,
                 is_buy: true,
-                limit_px: format!("{:.*}", asset as usize, limit_price),
-                sz: sz.clone(),
+                limit_px: format_limit_price(limit_price),
+                sz: format_size(sz, sz_decimals),
                 reduce_only: false,
                 order_type,
             };
 
-            orders.push(order);
+            let limit_price = match &order.order_type {
+                OrderType::Limit(Limit { tif: Tif::Ioc }) => market_price,
+                _ => limit_price,
+            };
+
+            println!(
+                "\nPlacing a buy order for {symbol} at {}",
+                format_limit_price(limit_price)
+            );
+
+            let res = exchange.place_order(order).await;
+
+            match res {
+                Ok(order) => match order {
+                    ExchangeResponse::Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
+                    ExchangeResponse::Ok(_order) => {
+                        // println!("Order placed: {:#?}", order);
+                        println!("Buy order was successfully placed.\n")
+                    }
+                },
+                Err(err) => {
+                    println!("{:#?}", err);
+                    return;
+                }
+            }
 
             // tp
             if tp.is_some() {
@@ -672,7 +693,7 @@ pub async fn cli(config: &Settings) {
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
-                    triger_px: trigger_price,
+                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
                     is_market: true,
                     tpsl: TriggerType::Tp,
                 });
@@ -680,27 +701,41 @@ pub async fn cli(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: false,
-                    limit_px: format!("{:.*}", asset as usize, trigger_price),
-                    sz: sz.clone(),
-                    reduce_only: false,
+                    limit_px: format_limit_price(trigger_price),
+                    sz: format_size(sz, sz_decimals),
+                    reduce_only: true,
                     order_type,
                 };
 
-                orders.push(order);
+                println!(
+                    "Placing a take profit order for {symbol} at {}",
+                    order.limit_px
+                );
+                let res = exchange.place_order(order).await;
+                match res {
+                    Ok(order) => match order {
+                        ExchangeResponse::Err(err) => println!("{:#?}", err),
+                        ExchangeResponse::Ok(_order) => {
+                            // println!("Order placed: {:#?}", order);
+                            println!("Take profit order was successfully placed.\n")
+                        }
+                    },
+                    Err(err) => println!("{:#?}", err),
+                }
             }
 
             // sl
             if sl.is_some() {
                 let trigger_price = match sl {
-                    Some(TpSl::Absolute(value)) => limit_price + value,
-                    Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Absolute(value)) => limit_price - value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
                     Some(TpSl::Fixed(value)) => value,
 
                     None => unreachable!("Expected a stop loss value"),
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
-                    triger_px: trigger_price,
+                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
                     is_market: true,
                     tpsl: TriggerType::Sl,
                 });
@@ -708,18 +743,28 @@ pub async fn cli(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: false,
-                    limit_px: format!("{:.*}", asset as usize, trigger_price),
-                    sz: sz.clone(),
-                    reduce_only: false,
+                    limit_px: format_limit_price(trigger_price),
+                    sz: format_size(sz, sz_decimals),
+                    reduce_only: true,
                     order_type,
                 };
 
-                orders.push(order);
+                println!(
+                    "Placing a stop loss order for {symbol} at {}",
+                    order.limit_px
+                );
+                let res = exchange.place_order(order).await;
+                match res {
+                    Ok(order) => match order {
+                        ExchangeResponse::Err(err) => println!("{:#?}", err),
+                        ExchangeResponse::Ok(_order) => {
+                            // println!("Order placed: {:#?}", order);
+                            println!("Stop loss order was successfully placed.\n")
+                        }
+                    },
+                    Err(err) => println!("{:#?}", err),
+                }
             }
-
-            let res = exchange.place_order(orders).await;
-
-            println!("{:#?}", res);
         }
 
         ("sell", Some(_sell_matches)) => {
@@ -1085,4 +1130,69 @@ pub async fn cli(config: &Settings) {
             println!("Invalid command: expected commands: (buy, sell, twap, view, pair)");
         }
     }
+}
+
+pub async fn order_checks(info: &Info, exchange: &Exchange, config: &Settings, asset: &str) {
+    let state = info
+        .clearing_house_state()
+        .await
+        .expect("Failed to fetch clearing house state");
+
+    let asset_position = state
+        .asset_positions
+        .iter()
+        .find(|ap| ap.position.coin.to_uppercase() == asset.to_uppercase());
+
+    let _update_leverage = match asset_position {
+        Some(ap) => {
+            let leverage = &ap.position.leverage;
+
+            leverage.value != config.default_leverage.value() as u32
+        }
+        None => {
+            println!("No open position for {}", asset);
+            true
+        }
+    };
+
+    let _update_margin = match asset_position {
+        Some(ap) => {
+            let margin_type = &ap.position.leverage.type_;
+
+            margin_type.to_lowercase() != config.default_margin.value.to_string().to_lowercase()
+        }
+        None => {
+            println!("No open position for {}", asset);
+            true
+        }
+    };
+
+    todo!("Update leverage and margin");
+
+    // if update_leverage {
+    //     println!(
+    //         "Adjusting leverage for {} from {} to {}",
+    //         asset,
+    //         asset_position.unwrap().position.leverage.value,
+    //         config.default_leverage.value()
+    //     );
+    //     let res = exchange
+    //         .update_leverage(asset, is_cross, leverage)
+    //         .await
+    //         .expect("Failed to update leverage");
+    // }
+
+    // if update_margin {
+    //     println!(
+    //         "Adjusting margin type for {} from {} to {}",
+    //         asset,
+    //         asset_position.unwrap().position.leverage.type_,
+    //         config.default_margin.value
+    //     );
+    //     todo!("Update margin type");
+    // let res = exchange
+    //     .update_margin(asset, is_cross, margin)
+    //     .await
+    //     .expect("Failed to update margin");
+    // }
 }

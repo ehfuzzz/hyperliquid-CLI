@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::{fmt::Debug, sync::Arc, time::SystemTime};
 
 use ethers::{
     abi::AbiEncode,
@@ -48,29 +48,15 @@ impl Exchange {
 
     pub async fn place_order(
         &self,
-        orders: Vec<OrderRequest>,
+        order: OrderRequest,
     ) -> Result<ExchangeResponse, anyhow::Error> {
-        println!("Placing order for {}", self.wallet.address());
-
         let nonce = self.timestamp();
+        let orders = vec![order];
 
         let connection_id = self.connection_id(&orders, nonce);
 
-        println!(
-            "{:#?}",
-            json!({
-                "action": {
-                    "type": "order",
-                    "grouping": "na",
-                    "orders": orders,
-                },
-                "nonce": nonce,
-                "signature": self.signature(connection_id).await,
-            })
-        );
-
         let res = self
-            .exchange(json!({
+            .post(json!({
                 "action": {
                     "type": "order",
                     "grouping": "na",
@@ -84,9 +70,9 @@ impl Exchange {
         Ok(res)
     }
 
-    async fn exchange<T: for<'de> Deserialize<'de>>(
+    async fn post<T: for<'de> Deserialize<'de>>(
         &self,
-        body: impl Serialize,
+        body: impl Serialize + Debug,
     ) -> Result<T, anyhow::Error> {
         let res = self
             .client
@@ -96,6 +82,7 @@ impl Exchange {
             .await?
             .json()
             .await?;
+
         Ok(res)
     }
     fn connection_id(&self, orders: &Vec<OrderRequest>, nonce: u128) -> H256 {
@@ -120,6 +107,7 @@ impl Exchange {
 
         let grouping: i32 = 0;
         let vault_address = Address::zero();
+
         keccak256((hashable_tuples, grouping, vault_address, nonce).encode()).into()
     }
 
