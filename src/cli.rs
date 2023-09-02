@@ -504,16 +504,16 @@ pub async fn cli(config: &Settings) {
 
             // ----------------------------------------------
 
-            let (sz, entry_price) = match sz {
+            let (sz, entry_price, is_buy) = match sz {
                 OrderSize::Percent(sz) => {
                     let state = info
                         .clearing_house_state()
                         .await
-                        .expect("Failed to fetch balance");
+                        .expect("Failed to fetch open positions");
 
                     let order = state.asset_positions.iter().find(|ap| {
-                        ap.position.entry_px.is_some()
-                            && ap.position.coin.to_uppercase() == symbol.to_uppercase()
+                        ap.position.coin.to_uppercase() == symbol.to_uppercase()
+                            && ap.position.entry_px.is_some()
                     });
 
                     let order = match order {
@@ -526,11 +526,14 @@ pub async fn cli(config: &Settings) {
                         }
                     };
 
-                    let order_size = order
-                        .position
-                        .position_value
+                    let (is_buy, order_size) = order.position.szi.split_at(1);
+
+                    let order_size = order_size
                         .parse::<f64>()
                         .expect("Failed to parse order size");
+
+                    // Positive for long, negative for short
+                    let is_buy = !is_buy.starts_with("-");
 
                     (
                         order_size * (sz as f64 / 100.0),
@@ -538,9 +541,10 @@ pub async fn cli(config: &Settings) {
                             .position
                             .entry_px
                             .as_ref()
-                            .unwrap()
+                            .expect("Failed to parse entry price")
                             .parse::<f64>()
                             .expect("Failed to parse entry price"),
+                        is_buy,
                     )
                 }
 
@@ -553,8 +557,15 @@ pub async fn cli(config: &Settings) {
             };
 
             let trigger_price = match tp {
-                TpSl::Absolute(value) => entry_price + value,
-                TpSl::Percent(value) => entry_price * (100.0 + value as f64) / 100.0,
+                TpSl::Absolute(value) => entry_price + if is_buy { value } else { -value },
+                TpSl::Percent(value) => {
+                    entry_price
+                        * if is_buy {
+                            (100.0 + value as f64) / 100.0
+                        } else {
+                            (100.0 - value as f64) / 100.0
+                        }
+                }
                 TpSl::Fixed(value) => value,
             };
 
@@ -570,7 +581,7 @@ pub async fn cli(config: &Settings) {
 
             let order = OrderRequest {
                 asset,
-                is_buy: false,
+                is_buy: !is_buy,
                 limit_px: format_limit_price(trigger_price),
                 sz: format_size(sz, sz_decimals),
                 reduce_only: true,

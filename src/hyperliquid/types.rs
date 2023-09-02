@@ -209,3 +209,26 @@ pub struct UnfilledOrder {
     pub side: String,
     pub sz: String,
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum Side {
+    B,
+    A,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UserFill {
+    pub closed_pnl: String,
+    pub coin: String,
+    pub crossed: bool,
+    pub dir: String,
+    pub hash: String,
+    pub oid: u64,
+    pub px: String,
+    pub side: Side,
+    pub start_position: String,
+    pub sz: String,
+    pub time: u64,
+}
