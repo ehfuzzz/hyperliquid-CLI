@@ -11,10 +11,11 @@ impl TryFrom<&str> for OrderSize {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.trim();
-        let (size, unit) = {
-            let r = value.split("%").collect::<Vec<&str>>();
 
-            (r[0], *r.get(1).unwrap_or(&""))
+        let (size, unit) = if value.ends_with("%") {
+            value.split_at(value.len() - 1)
+        } else {
+            (value, "")
         };
 
         let size = if size.starts_with("$") {
