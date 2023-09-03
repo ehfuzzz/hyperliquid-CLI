@@ -5,7 +5,10 @@ use ethers::signers::{LocalWallet, Signer};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::types::{AssetCtx, ClearingHouseState, Ctx, UnfilledOrder, Universe};
+use super::{
+    types::{AssetCtx, ClearingHouseState, Ctx, UnfilledOrder, Universe},
+    UserFill,
+};
 
 pub struct Info {
     pub wallet: Arc<LocalWallet>,
@@ -64,6 +67,17 @@ impl Info {
         let res = self
             .info(json!({
                     "type": "openOrders",
+                    "user": self.wallet.address(),
+            }))
+            .await?;
+
+        Ok(res)
+    }
+
+    pub async fn user_fills(&self) -> Result<Vec<UserFill>, anyhow::Error> {
+        let res = self
+            .info(json!({
+                    "type": "userFills",
                     "user": self.wallet.address(),
             }))
             .await?;

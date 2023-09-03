@@ -156,10 +156,9 @@ pub struct Leverage {
 
 pub struct Position {
     pub coin: String,
-    #[serde(default)] // Handle null values
+    #[serde(default)]
     pub entry_px: Option<String>,
     pub leverage: Leverage,
-    // pub liquidation_px: String,
     pub margin_used: String,
     pub max_trade_szs: Vec<String>,
     pub position_value: String,
@@ -182,7 +181,6 @@ pub struct MarginSummary {
     pub total_margin_used: String,
     pub total_ntl_pos: String,
     pub total_raw_usd: String,
-    // pub withdrawable: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -192,7 +190,6 @@ pub struct CrossMarginSummary {
     pub total_margin_used: String,
     pub total_ntl_pos: String,
     pub total_raw_usd: String,
-    // pub withdrawable: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -211,4 +208,27 @@ pub struct UnfilledOrder {
     pub oid: u64,
     pub side: String,
     pub sz: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum Side {
+    B,
+    A,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UserFill {
+    pub closed_pnl: String,
+    pub coin: String,
+    pub crossed: bool,
+    pub dir: String,
+    pub hash: String,
+    pub oid: u64,
+    pub px: String,
+    pub side: Side,
+    pub start_position: String,
+    pub sz: String,
+    pub time: u64,
 }

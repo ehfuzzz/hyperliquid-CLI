@@ -24,13 +24,13 @@ pub async fn cli(config: &Settings) {
         .about("A CLI bot to interact with the hyperliquid exchange")
         .subcommand(
             App::new("tp")
-                .about(" Handles Take profit command")
+                .about("Takes profit on open order as a market order")
                 .arg(
-                    Arg::with_name("percentage_order")
+                    Arg::with_name("size")
                         .required(true)
                         .index(1)
                         .takes_value(true)
-                        .help("% of order to TP")
+                        .help("% of order to tp")
                         .validator(validate_value_size)
                 )
                 .arg(
@@ -39,11 +39,11 @@ pub async fn cli(config: &Settings) {
                         .index(2)
                         .takes_value(true)
                         .help(
-                            "asset symbol e.g ETH, SOL, BTC .., optional if default asset is provided"
+                            "Asset symbol e.g ETH, SOL, BTC ... optional if default asset is provided"
                         )
                 )
                 .arg(
-                    Arg::with_name("tp_price")
+                    Arg::with_name("tp")
                         .required(true)
                         .index(3)
                         .takes_value(true)
@@ -113,13 +113,13 @@ pub async fn cli(config: &Settings) {
                         .validator(validate_limit_price)
                 )
                 .arg(
-                    Arg::with_name("take_profit")
+                    Arg::with_name("tp")
                         .help("Take profit value")
                         .long("tp")
                         .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("stop_loss").help("Stop loss value").long("sl").takes_value(true)
+                    Arg::with_name("sl").help("Stop loss value").long("sl").takes_value(true)
                 )
         )
         .subcommand(
@@ -485,40 +485,121 @@ pub async fn cli(config: &Settings) {
         .collect::<HashMap<String, (u32, u32)>>();
 
     match matches.subcommand() {
-        ("tp", Some(_tp_matches)) => {
-            // let percentage_order = tp_matches.value_of("percentage_order").unwrap();
-            // let percentage_order: f64 = percentage_order
-            //     .trim_end_matches("%")
-            //     .parse::<f64>()
-            //     .unwrap();
+        ("tp", Some(matches)) => {
+            let sz: OrderSize = matches
+                .value_of("size")
+                .unwrap()
+                .try_into()
+                .expect("Failed to parse order size");
 
-            // let asset = tp_matches.value_of("asset").unwrap();
-            // let asset: u32 = calculate_asset_to_id(&asset);
-            // let tp_price = tp_matches.value_of("tp_price").unwrap();
-            // let oid = 1234567;
-            // let sz: f64 = get_sz_from_oid(oid) * percentage_order / 100.0;
-            // let sz: String = sz.to_string();
-            // let reduce_only = false;
-            // let is_buy: bool = get_side_from_oid(oid);
+            let symbol = matches
+                .value_of("asset")
+                .unwrap_or(&config.default_asset.value);
 
-            // match tp_price {
-            //     tp_price
-            //         if tp_price.ends_with("%")
-            //             || tp_price.starts_with("$")
-            //             || tp_price.ends_with("%pnl")
-            //             || tp_price.ends_with("pnl") =>
-            //     {
-            //         place_tp_order(asset, is_buy, tp_price, limit_px, &sz, reduce_only, true).await;
-            //     }
-            //     tp_price if validate_value(tp_price.to_string()).is_ok() => {
-            //         place_tp_order(asset, is_buy, tp_price, limit_px, &sz, reduce_only, false)
-            //             .await;
-            //         println!("Logic for handling + 100: {}", &tp_price);
-            //     }
-            //     _ => {
-            //         println!("No matching pattern");
-            //     }
-            // }
+            let tp: TpSl = matches
+                .value_of("tp")
+                .expect("Tp price is required")
+                .try_into()
+                .expect("Invalid tp price, valid values e.g 10% | +10 | 1900");
+
+            // ----------------------------------------------
+
+            let (sz, entry_price, is_buy) = match sz {
+                OrderSize::Percent(sz) => {
+                    let state = info
+                        .clearing_house_state()
+                        .await
+                        .expect("Failed to fetch open positions");
+
+                    let order = state.asset_positions.iter().find(|ap| {
+                        ap.position.coin.to_uppercase() == symbol.to_uppercase()
+                            && ap.position.entry_px.is_some()
+                    });
+
+                    let order = match order {
+                        Some(order) => order,
+                        None => {
+                            println!("{}", "-".repeat(35));
+
+                            println!("\nNo open order for {}", symbol);
+                            return;
+                        }
+                    };
+
+                    let (is_buy, order_size) = order.position.szi.split_at(1);
+
+                    let order_size = order_size
+                        .parse::<f64>()
+                        .expect("Failed to parse order size");
+
+                    // Positive for long, negative for short
+                    let is_buy = !is_buy.starts_with("-");
+
+                    (
+                        order_size * (sz as f64 / 100.0),
+                        order
+                            .position
+                            .entry_px
+                            .as_ref()
+                            .expect("Failed to parse entry price")
+                            .parse::<f64>()
+                            .expect("Failed to parse entry price"),
+                        is_buy,
+                    )
+                }
+
+                _ => {
+                    println!("{}", "-".repeat(35));
+
+                    println!("\nOnly % of order to tp is supported for now");
+                    return;
+                }
+            };
+
+            let trigger_price = match tp {
+                TpSl::Absolute(value) => entry_price + if is_buy { value } else { -value },
+                TpSl::Percent(value) => {
+                    entry_price
+                        * if is_buy {
+                            (100.0 + value as f64) / 100.0
+                        } else {
+                            (100.0 - value as f64) / 100.0
+                        }
+                }
+                TpSl::Fixed(value) => value,
+            };
+
+            let order_type = OrderType::Trigger(Trigger {
+                trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                is_market: true,
+                tpsl: TriggerType::Tp,
+            });
+
+            let (sz_decimals, asset) = *assets
+                .get(&symbol.to_uppercase())
+                .expect("Failed to find asset");
+
+            let order = OrderRequest {
+                asset,
+                is_buy: !is_buy,
+                limit_px: format_limit_price(trigger_price),
+                sz: format_size(sz, sz_decimals),
+                reduce_only: true,
+                order_type,
+            };
+
+            let res = exchange.place_order(order).await;
+            match res {
+                Ok(order) => match order {
+                    ExchangeResponse::Err(err) => println!("{:#?}", err),
+                    ExchangeResponse::Ok(_order) => {
+                        // println!("Order placed: {:#?}", order);
+                        println!("{}", "-".repeat(35));
+                        println!("\nTake profit order was successfully placed.\n")
+                    }
+                },
+                Err(err) => println!("{:#?}", err),
+            }
         }
         ("sl", Some(_sl_matches)) => {
             // let percentage_order = sl_matches.value_of("percentage_order").unwrap();
@@ -575,13 +656,13 @@ pub async fn cli(config: &Settings) {
                 .try_into()
                 .expect("Failed to parse limit price");
 
-            let tp: Option<TpSl> = matches.value_of("take_profit").map(|price| {
+            let tp: Option<TpSl> = matches.value_of("tp").map(|price| {
                 price.try_into().expect(
                     "Invalid take profit value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let sl: Option<TpSl> = matches.value_of("stop_loss").map(|price| {
+            let sl: Option<TpSl> = matches.value_of("sl").map(|price| {
                 price.try_into().expect(
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                 )
@@ -1132,7 +1213,7 @@ pub async fn cli(config: &Settings) {
     }
 }
 
-pub async fn order_checks(info: &Info, exchange: &Exchange, config: &Settings, asset: &str) {
+pub async fn order_checks(info: &Info, _exchange: &Exchange, config: &Settings, asset: &str) {
     let state = info
         .clearing_house_state()
         .await

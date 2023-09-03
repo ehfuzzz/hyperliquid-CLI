@@ -32,36 +32,14 @@ pub fn validate_tp_price(value: String) -> Result<(), String> {
             Ok(())
         } else {
             Err(String::from(
-                "Invalid percentage format: correct example 10%",
+                "tp price or %/$ gain in asset before tp or %/$ gain in pnl before tp e.g 10%",
             ))
-        }
-    } else if value.starts_with("$") && value.len() > 1 {
-        if value[2..].parse::<f64>().is_ok() {
-            Ok(())
-        } else {
-            Err(String::from("Invalid USDC format: correct example $300"))
-        }
-    } else if value.ends_with("%pnl") {
-        if value.trim_end_matches("%pnl").parse::<f64>().is_ok() {
-            Ok(())
-        } else {
-            Err(String::from(
-                " Invalid % pnl format: correct example: 30%pnl",
-            ))
-        }
-    } else if value.ends_with("pnl") {
-        if value.trim_end_matches("pnl").parse::<f64>().is_ok() {
-            Ok(())
-        } else {
-            Err(String::from(" Invalid pnl format: correct example: 300pnl"))
         }
     } else {
-        if validate_value(value).is_err() {
-            Err(String::from(
-                "Invalid format: Expected tp format: (10%, $300, 300pnl 34%pnl, 1990)",
-            ))
-        } else {
+        if value.parse::<f64>().is_ok() {
             Ok(())
+        } else {
+            Err(String::from("Invalid USDC format e.g 100"))
         }
     }
 }
