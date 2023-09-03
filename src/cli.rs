@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 //using version 2.33 not the latest one
 use clap::{App, Arg};
@@ -947,11 +947,8 @@ pub async fn cli(config: &Settings) {
                         .parse::<f64>()
                         .unwrap();
                     let symbol = matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> = matches
-                        .value_of("interval")
-                        .unwrap()
-                        .split(",")
-                        .collect();
+                    let intervals: Vec<&str> =
+                        matches.value_of("interval").unwrap().split(",").collect();
 
                     let interval_minutes: f64 =
                         intervals[0].parse().expect("Invalid Interval Value");
@@ -959,30 +956,26 @@ pub async fn cli(config: &Settings) {
 
                     let amount_asset = order_size / interval_range;
 
-
-
                     let (sz_decimals, asset) = *assets
                         .get(&symbol.to_uppercase())
                         .expect("Failed to find asset");
 
                     println!("Amount to buy: {}", amount_asset);
 
-
                     //now place this order at intervals of interval_minutes
                     for i in 0..interval_range as i32 {
-
                         let market_price = info
-                        .asset_ctx(&symbol.to_uppercase())
-                        .await
-                        .expect("Failed to fetch asset ctxs")
-                        .expect("Failed to find asset")
-                        .mark_px
-                        .parse::<f64>()
-                        .unwrap();
+                            .asset_ctx(&symbol.to_uppercase())
+                            .await
+                            .expect("Failed to fetch asset ctxs")
+                            .expect("Failed to find asset")
+                            .mark_px
+                            .parse::<f64>()
+                            .unwrap();
 
                         println!("Market price is: {}", market_price);
                         let slippage = 3.0 / 100.0;
-                        let limit_price = market_price * (1.0 + slippage);                        
+                        let limit_price = market_price * (1.0 + slippage);
 
                         let order = OrderRequest {
                             asset,
@@ -993,7 +986,7 @@ pub async fn cli(config: &Settings) {
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                         };
 
-                        println! ("Placing order number: {}", i+1);
+                        println!("Placing order number: {}", i + 1);
 
                         let res = exchange.place_order(order).await;
 
@@ -1015,96 +1008,44 @@ pub async fn cli(config: &Settings) {
                         }
 
                         println!("Sleeping for {} minutes", interval_minutes);
-                        thread::sleep(Duration::from_secs(
-                            (interval_minutes * 60.0) as u64,
-                        ));
+                        thread::sleep(Duration::from_secs((interval_minutes * 60.0) as u64));
                     }
-
-
-                    
                 }
-                ("sell", Some(matches)) => {
-                    let order_size = matches
+                ("sell", Some(twapsell_matches)) => {
+                    let order_size = twapsell_matches
                         .value_of("order_size")
                         .unwrap()
                         .parse::<f64>()
                         .unwrap();
-                    let symbol = matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> = matches
+                    let asset = twapsell_matches.value_of("asset").unwrap();
+                    let intervals: Vec<&str> = twapsell_matches
                         .value_of("interval")
                         .unwrap()
                         .split(",")
                         .collect();
 
+                    println!(
+                    "twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}",
+                    order_size,
+                    asset,
+                    intervals,
+                    intervals.get(0)
+                );
+
                     let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Interval Value");
-                    let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
+                        intervals[0].parse().expect("Invalid Internal Value");
+                    let interval_range: f64 = intervals[1].parse().expect("Invalid Interval Value");
 
                     let amount_asset = order_size / interval_range;
 
-                    let (sz_decimals, asset) = *assets
-                        .get(&symbol.to_uppercase())
-                        .expect("Failed to find asset");
-
-                    println!("Amount to sell: {}", amount_asset);
-
-                    //now place this order at intervals of interval_minutes
-
-                    for i in 0..interval_range as i32 {
-
-                        let market_price = info
-                        .asset_ctx(&symbol.to_uppercase())
-                        .await
-                        .expect("Failed to fetch asset ctxs")
-                        .expect("Failed to find asset")
-                        .mark_px
-                        .parse::<f64>()
-                        .unwrap();
-
-                        println!("Market price is: {}", market_price);
-                        let slippage = 3.0 / 100.0;
-                        let limit_price = market_price * (1.0 - slippage);                        
-
-                        let order = OrderRequest {
-                            asset,
-                            is_buy: false,
-                            limit_px: format_limit_price(limit_price),
-                            sz: format_size(amount_asset, sz_decimals),
-                            reduce_only: false,
-                            order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
-                        };
-
-                        println! ("Placing order number: {}", i+1);
-
-                        let res = exchange.place_order(order).await;
-
-                        match res {
-                            Ok(order) => match order {
-                                ExchangeResponse::Err(err) => {
-                                    println!("{:#?}", err);
-                                    return;
-                                }
-                                ExchangeResponse::Ok(_order) => {
-                                    // println!("Order placed: {:#?}", order);
-                                    println!("Sell order was successfully placed.\n")
-                                }
-                            },
-                            Err(err) => {
-                                println!("{:#?}", err);
-                                return;
-                            }
-                        }
-
-                        println!("Sleeping for {} minutes", interval_minutes);
-                        thread::sleep(Duration::from_secs(
-                            (interval_minutes * 60.0) as u64,
-                        ));
-                    }
+                    println!(
+                        "Selling {} {} at intervals of {} minutes",
+                        amount_asset, asset, interval_minutes
+                    );
                 }
                 _ => {
                     println!("No matching pattern");
                 }
-                
             }
         }
 
