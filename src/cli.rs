@@ -1461,8 +1461,8 @@ pub async fn cli(config: &Settings) {
                     .expect(&format!("Failed to find quote asset:  {}", pair.quote));
 
                 match limit_price {
-                    LimitPrice::Absolute(price) => {
-                        if price == 0.0 {
+                    LimitPrice::Absolute(target) => {
+                        if target == 0.0 {
                             // Takes 50% of order size and longs Asset X and
                             {
                                 let asset_ctx = info
@@ -1573,7 +1573,13 @@ pub async fn cli(config: &Settings) {
                         } else {
                             // If limit price for eth/btc is .06, wait for the eth/btc ratio to become .06,
                             // then long eth and short btc at market
-                            let (base_sz, base_market_price, quote_sz, quote_market_price) = loop {
+                            let (
+                                base_sz,
+                                base_market_price,
+                                quote_sz,
+                                quote_market_price,
+                                current_ratio,
+                            ) = loop {
                                 let base_limit_price = {
                                     let base_asset_ctx = info
                                         .asset_ctx(&pair.base)
@@ -1599,15 +1605,10 @@ pub async fn cli(config: &Settings) {
                                     quote_asset_ctx.mark_px.parse::<f64>().unwrap()
                                 };
 
-                                let ratio = base_limit_price / quote_market_price;
+                                let current_ratio = base_limit_price / quote_market_price;
 
-                                println!(
-                                    "Current Ratio: {}",
-                                    format!("{:.4}", ratio).parse::<f64>().unwrap()
-                                );
-
-                                if ratio == price {
-                                    println!("Ratio reached: {}", ratio);
+                                if current_ratio == target {
+                                    println!("Ratio reached: {}", current_ratio);
                                     let base_sz = base_sz / base_limit_price;
                                     let quote_sz = quote_sz / quote_market_price;
 
@@ -1616,9 +1617,16 @@ pub async fn cli(config: &Settings) {
                                         base_limit_price,
                                         quote_sz,
                                         quote_market_price,
+                                        current_ratio,
                                     );
                                 }
 
+                                println!(
+                                    "Current Ratio: {}, Target Ratio: {}, Diff: {}. Checking again in 5 seconds\n---",
+                                    format!("{:.4}", current_ratio).parse::<f64>().unwrap(),
+                                    format!("{:.4}", target).parse::<f64>().unwrap(),
+                                    format!("{:.4}", current_ratio - target).parse::<f64>().unwrap(),
+                                );
                                 tokio::time::sleep(Duration::from_secs(5)).await;
                             };
 
@@ -1648,6 +1656,7 @@ pub async fn cli(config: &Settings) {
                                     format_size(base_sz * base_market_price, base_sz_decimals)
                                 );
                                 println!("Market price: {}\n", base_market_price);
+                                println!("Ratio: {}\n", current_ratio);
 
                                 match exchange.place_order(order).await {
                                     Ok(order) => match order {
@@ -1692,6 +1701,7 @@ pub async fn cli(config: &Settings) {
                                     format_size(quote_sz * quote_market_price, quote_sz_decimals)
                                 );
                                 println!("Market price: {}\n", quote_market_price);
+                                println!("Ratio: {}\n", current_ratio);
 
                                 match exchange.place_order(order).await {
                                     Ok(order) => match order {
