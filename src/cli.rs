@@ -1161,7 +1161,6 @@ pub async fn cli(config: &Settings) {
 
                     let slippage = 3.0 / 100.0;
 
-                    //now place this order at intervals of interval_minutes
                     for i in 1..=interval.num_of_orders {
                         let market_price = info
                             .asset_ctx(&symbol.to_uppercase())
