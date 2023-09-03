@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::Deserialize;
 
 #[derive(Debug)]
@@ -30,6 +32,34 @@ impl TryFrom<&str> for OrderSize {
             "%" => Ok(OrderSize::Percent(size as u8)),
             _ => Ok(OrderSize::Absolute(size)),
         }
+    }
+}
+
+pub struct TwapInterval {
+    pub interval: Duration,
+    pub num_of_orders: u8,
+}
+
+impl TryFrom<&str> for TwapInterval {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value = value.trim();
+
+        let values = value.split(",").collect::<Vec<&str>>();
+
+        let interval = values.get(0).ok_or("Invalid interval")?;
+        let num_of_orders = values.get(1).ok_or("Invalid num of orders")?;
+
+        let interval = interval.parse::<u64>().map_err(|_| "Invalid interval")?;
+        let interval = Duration::from_secs(interval * 60);
+
+        Ok(TwapInterval {
+            interval,
+            num_of_orders: num_of_orders
+                .parse::<u8>()
+                .map_err(|_| "Invalid num of orders")?,
+        })
     }
 }
 
