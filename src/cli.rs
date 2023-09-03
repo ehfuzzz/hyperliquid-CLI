@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
+
 //using version 2.33 not the latest one
 use clap::{App, Arg};
 use ethers::signers::LocalWallet;
@@ -14,7 +16,7 @@ use crate::hyperliquid::{
     TriggerType,
 };
 use crate::settings::Settings;
-use crate::types::{LimitPrice, MarginType, OrderSize, TpSl, TwapInterval};
+use crate::types::{LimitPrice, MarginType, OrderSize, Pair, TpSl, TwapInterval};
 
 pub async fn cli(config: &Settings) {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -264,30 +266,24 @@ pub async fn cli(config: &Settings) {
         )
         .subcommand(
             App::new("pair")
-                .about("Handles the pair buy and pair sell logic")
+                .about("Takes 50% of order size and longs Asset X and takes another 50% of order size and shorts Asset Y.")
                 .subcommand(
                     App::new("buy")
                         .about("pair to buy")
                         .arg(
-                            Arg::with_name("order_size")
+                            Arg::with_name("size")
                                 .required(true)
                                 .index(1)
                                 .takes_value(true)
-                                .help("Total Order Size")
-                                .validator(|v| {
-                                    if v.parse::<f64>().is_ok() {
-                                        Ok(())
-                                    } else {
-                                        Err(String::from("Expected a numeric value"))
-                                    }
-                                })
+                                .help("Order Size")
+                                .validator(validate_value_size)
                         )
                         .arg(
                             Arg::with_name("pair")
                                 .required(true)
                                 .index(2)
                                 .takes_value(true)
-                                .help("forward slash separated assets symbol to be pair traded")
+                                .help("Asset X/Asset Y e.g BTC/SOL")
                         )
                         .arg(
                             Arg::with_name("limit_price")
@@ -298,19 +294,19 @@ pub async fn cli(config: &Settings) {
                                 .validator(validate_limit_price)
                         )
                         .arg(
-                            Arg::with_name("stop_loss")
+                            Arg::with_name("sl")
                                 .required(false)
                                 .index(4)
                                 .takes_value(true)
-                                .help("stop loss if applicable")
+                                .help("Stop loss")
                                 .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("take_profit")
+                            Arg::with_name("tp")
                                 .required(false)
                                 .index(5)
                                 .takes_value(true)
-                                .help("Take profit if applicable")
+                                .help("Take profit")
                                 .validator(validate_value)
                         )
                 )
@@ -1409,96 +1405,366 @@ pub async fn cli(config: &Settings) {
             }
         },
 
-        ("pair", Some(pair_matches)) => {
-            //pair buy <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
+        ("pair", Some(matches)) => match matches.subcommand() {
+            ("buy", Some(matches)) => {
+                let sz: f64 = match matches
+                    .value_of("size")
+                    .unwrap()
+                    .try_into()
+                    .expect("Failed to parse order size")
+                {
+                    OrderSize::Absolute(sz) => sz,
+                    _ => {
+                        println!("{}", "-".repeat(35));
 
-            match pair_matches.subcommand() {
-                ("buy", Some(buy_matches)) => {
-                    let order_size = buy_matches
-                        .value_of("order_size")
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap()
-                        / 2.0;
-                    let pair: Vec<&str> =
-                        buy_matches.value_of("pair").unwrap().split("/").collect();
-
-                    let limit_price = buy_matches.value_of("limit_price");
-                    let stop_loss = buy_matches.value_of("stop_loss");
-                    let take_profit = buy_matches.value_of("take_profit");
-                    let pair_one: String =
-                        pair[0].parse().expect("Expected a valid string literal");
-                    let pair_two: String =
-                        pair[1].parse().expect("Expected a valid string literal");
-
-                    println!(
-                        "Longing {} {} and shorting {} {}",
-                        order_size, pair_one, order_size, pair_two
-                    );
-
-                    if let Some(lp) = limit_price {
-                        println!("Entering at this : {} limit price", lp);
-                    } else {
-                        println!(" Entering at Market price");
+                        println!("\nOnly absolute order size is supported for now");
+                        return;
                     }
-                    if let Some(sl) = stop_loss {
-                        println!("Stop loss provided: {}", sl);
-                    } else {
-                        println!(" The already set stop loss rules will be used");
-                    }
-                    if let Some(tp) = take_profit {
-                        println!("Take profit provided: {}", tp);
-                    } else {
-                        println!(" The already set default take profit rules will be used");
-                    }
+                };
 
-                    //pair sell <Order Size> <Asset X/Asset Y> <@limit price, if applicable> <sl if applicable> <tp if applicable>
-                }
-                ("sell", Some(sell_matches)) => {
-                    let order_size = sell_matches
-                        .value_of("order_size")
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap()
-                        / 2.0;
-                    let pair: Vec<&str> =
-                        sell_matches.value_of("pair").unwrap().split("/").collect();
+                let pair: Pair = matches
+                    .value_of("pair")
+                    .unwrap()
+                    .try_into()
+                    .expect("Failed to parse pair");
 
-                    let limit_price = sell_matches.value_of("limit_price");
-                    let stop_loss = sell_matches.value_of("stop_loss");
-                    let take_profit = sell_matches.value_of("take_profit");
-                    let pair_one: String =
-                        pair[0].parse().expect("Expected a valid string literal");
-                    let pair_two: String =
-                        pair[1].parse().expect("Expected a valid string literal");
+                let limit_price: LimitPrice = matches
+                    .value_of("limit_price")
+                    .unwrap_or("@0")
+                    .try_into()
+                    .expect("Failed to parse limit price");
 
-                    println!(
-                        "Shorting {} {} and Longing {} {}",
-                        order_size, pair_one, order_size, pair_two
-                    );
+                let _tp: Option<TpSl> = matches.value_of("tp").map(|price| {
+                        price.try_into().expect(
+                            "Invalid take profit value, expected a number or a percentage value e.g 10%",
+                        )
+                    });
 
-                    if let Some(lp) = limit_price {
-                        println!("Entering at this: {} market price", lp);
-                    } else {
-                        println!(" Entering at market price");
+                let _sl: Option<TpSl> = matches.value_of("sl").map(|price| {
+                    price.try_into().expect(
+                        "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                    )
+                });
+
+                // ----------------------------------------------
+                let slippage = 3.0 / 100.0;
+
+                let base_sz = sz / 2.0;
+                let quote_sz = sz / 2.0;
+
+                let (base_sz_decimals, base_asset) = *assets
+                    .get(&pair.base.to_uppercase())
+                    .expect(&format!("Failed to find base asset:  {}", pair.base));
+
+                let (quote_sz_decimals, quote_asset) = *assets
+                    .get(&pair.quote.to_uppercase())
+                    .expect(&format!("Failed to find quote asset:  {}", pair.quote));
+
+                match limit_price {
+                    LimitPrice::Absolute(target) => {
+                        if target == 0.0 {
+                            // Takes 50% of order size and longs Asset X and
+                            {
+                                let asset_ctx = info
+                                    .asset_ctx(&pair.base)
+                                    .await
+                                    .expect("Failed to fetch asset ctxs")
+                                    .expect(&format!("Failed to find base asset:  {}", pair.base));
+
+                                let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+                                let limit_price = market_price * (1.0 + slippage);
+
+                                let sz = base_sz / market_price;
+
+                                let order = OrderRequest {
+                                    asset: base_asset,
+                                    is_buy: true,
+                                    limit_px: format_limit_price(limit_price),
+                                    sz: format_size(sz, base_sz_decimals),
+                                    reduce_only: false,
+                                    order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                };
+
+                                println!("{}", "---".repeat(20));
+                                println!("Order 1 of 2");
+                                println!("Side: Buy");
+                                println!(
+                                    "Size in {}: {}",
+                                    pair.base,
+                                    format_size(sz, base_sz_decimals)
+                                );
+                                println!("Size in USD: {}", format_size(base_sz, base_sz_decimals));
+                                println!("Market price: {}\n", market_price);
+
+                                match exchange.place_order(order).await {
+                                    Ok(order) => match order {
+                                        ExchangeResponse::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
+                                        }
+                                        ExchangeResponse::Ok(_order) => {
+                                            // println!("Order placed: {:#?}", order);
+                                            println!("Buy order was successfully placed.\n")
+                                        }
+                                    },
+                                    Err(err) => {
+                                        println!("{:#?}", err);
+                                        return;
+                                    }
+                                }
+                            }
+
+                            // takes another 50% of order size and shorts Asset Y
+                            {
+                                let asset_ctx = info
+                                    .asset_ctx(&pair.quote)
+                                    .await
+                                    .expect("Failed to fetch asset ctxs")
+                                    .expect(&format!(
+                                        "Failed to find quote asset:  {}",
+                                        pair.quote
+                                    ));
+
+                                let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+                                let limit_price = market_price * (1.0 - slippage);
+
+                                let sz = quote_sz / market_price;
+
+                                let order = OrderRequest {
+                                    asset: quote_asset,
+                                    is_buy: false,
+                                    limit_px: format_limit_price(limit_price),
+                                    sz: format_size(sz, quote_sz_decimals),
+                                    reduce_only: false,
+                                    order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                };
+
+                                println!("{}", "---".repeat(20));
+                                println!("Order 2 of 2");
+                                println!("Side: Sell");
+                                println!(
+                                    "Size in {}: {}",
+                                    pair.quote,
+                                    format_size(sz, quote_sz_decimals)
+                                );
+                                println!(
+                                    "Size in USD: {}",
+                                    format_size(quote_sz, quote_sz_decimals)
+                                );
+                                println!("Market price: {}\n", market_price);
+
+                                match exchange.place_order(order).await {
+                                    Ok(order) => match order {
+                                        ExchangeResponse::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
+                                        }
+                                        ExchangeResponse::Ok(_order) => {
+                                            // println!("Order placed: {:#?}", order);
+                                            println!("Sell order was successfully placed.\n")
+                                        }
+                                    },
+                                    Err(err) => {
+                                        println!("{:#?}", err);
+                                        return;
+                                    }
+                                }
+                            }
+                        } else {
+                            // If limit price for eth/btc is .06, wait for the eth/btc ratio to become .06,
+                            // then long eth and short btc at market
+                            let (
+                                base_sz,
+                                base_market_price,
+                                quote_sz,
+                                quote_market_price,
+                                current_ratio,
+                            ) = loop {
+                                let base_limit_price = {
+                                    let base_asset_ctx = info
+                                        .asset_ctx(&pair.base)
+                                        .await
+                                        .expect("Failed to fetch asset ctxs")
+                                        .expect(&format!(
+                                            "Failed to find quote asset:  {}",
+                                            pair.quote
+                                        ));
+                                    base_asset_ctx.mark_px.parse::<f64>().unwrap()
+                                };
+
+                                let quote_market_price = {
+                                    let quote_asset_ctx = info
+                                        .asset_ctx(&pair.quote)
+                                        .await
+                                        .expect("Failed to fetch asset ctxs")
+                                        .expect(&format!(
+                                            "Failed to find quote asset:  {}",
+                                            pair.quote
+                                        ));
+
+                                    quote_asset_ctx.mark_px.parse::<f64>().unwrap()
+                                };
+
+                                let current_ratio = base_limit_price / quote_market_price;
+
+                                if current_ratio == target {
+                                    println!("Ratio reached: {}", current_ratio);
+                                    let base_sz = base_sz / base_limit_price;
+                                    let quote_sz = quote_sz / quote_market_price;
+
+                                    break (
+                                        base_sz,
+                                        base_limit_price,
+                                        quote_sz,
+                                        quote_market_price,
+                                        current_ratio,
+                                    );
+                                }
+
+                                println!(
+                                    "Current Ratio: {}, Target Ratio: {}, Diff: {}. Checking again in 5 seconds\n---",
+                                    format!("{:.4}", current_ratio).parse::<f64>().unwrap(),
+                                    format!("{:.4}", target).parse::<f64>().unwrap(),
+                                    format!("{:.4}", current_ratio - target).parse::<f64>().unwrap(),
+                                );
+                                tokio::time::sleep(Duration::from_secs(5)).await;
+                            };
+
+                            // send buy order request
+                            {
+                                let order = OrderRequest {
+                                    asset: base_asset,
+                                    is_buy: true,
+                                    limit_px: format_limit_price(
+                                        base_market_price * (1.0 + slippage),
+                                    ),
+                                    sz: format_size(base_sz, base_sz_decimals),
+                                    reduce_only: false,
+                                    order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                };
+
+                                println!("{}", "---".repeat(20));
+                                println!("Order 1 of 2");
+                                println!("Side: Buy");
+                                println!(
+                                    "Size in {}: {}",
+                                    pair.base,
+                                    format_size(base_sz, base_sz_decimals)
+                                );
+                                println!(
+                                    "Size in USD: {}",
+                                    format_size(base_sz * base_market_price, base_sz_decimals)
+                                );
+                                println!("Market price: {}\n", base_market_price);
+                                println!("Ratio: {}\n", current_ratio);
+
+                                match exchange.place_order(order).await {
+                                    Ok(order) => match order {
+                                        ExchangeResponse::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
+                                        }
+                                        ExchangeResponse::Ok(_order) => {
+                                            // println!("Order placed: {:#?}", order);
+                                            println!("Buy order was successfully placed.\n")
+                                        }
+                                    },
+                                    Err(err) => {
+                                        println!("{:#?}", err);
+                                        return;
+                                    }
+                                }
+                            }
+                            // send sell order request
+                            {
+                                let order = OrderRequest {
+                                    asset: quote_asset,
+                                    is_buy: false,
+                                    limit_px: format_limit_price(
+                                        quote_market_price * (1.0 - slippage),
+                                    ),
+                                    sz: format_size(quote_sz, quote_sz_decimals),
+                                    reduce_only: false,
+                                    order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                };
+
+                                println!("{}", "---".repeat(20));
+                                println!("Order 2 of 2");
+                                println!("Side: Sell");
+                                println!(
+                                    "Size in {}: {}",
+                                    pair.quote,
+                                    format_size(quote_sz, quote_sz_decimals)
+                                );
+                                println!(
+                                    "Size in USD: {}",
+                                    format_size(quote_sz * quote_market_price, quote_sz_decimals)
+                                );
+                                println!("Market price: {}\n", quote_market_price);
+                                println!("Ratio: {}\n", current_ratio);
+
+                                match exchange.place_order(order).await {
+                                    Ok(order) => match order {
+                                        ExchangeResponse::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
+                                        }
+                                        ExchangeResponse::Ok(_order) => {
+                                            // println!("Order placed: {:#?}", order);
+                                            println!("Sell order was successfully placed.\n")
+                                        }
+                                    },
+                                    Err(err) => {
+                                        println!("{:#?}", err);
+                                        return;
+                                    }
+                                }
+                            }
+                        }
                     }
-                    if let Some(sl) = stop_loss {
-                        println!("Stop loss provided: {}", sl);
-                    } else {
-                        println!(" The already set stop loss rules will be used");
-                    }
-                    if let Some(tp) = take_profit {
-                        println!("Take profit provided: {}", tp);
-                    } else {
-                        println!(" The already set default take profit rules will be used");
-                    }
-                }
-
-                _ => {
-                    println!("Invalid Pair command: We only have pair buy and pair sell");
                 }
             }
-        }
+            ("sell", Some(sell_matches)) => {
+                let order_size = sell_matches
+                    .value_of("order_size")
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap()
+                    / 2.0;
+                let pair: Vec<&str> = sell_matches.value_of("pair").unwrap().split("/").collect();
+
+                let limit_price = sell_matches.value_of("limit_price");
+                let stop_loss = sell_matches.value_of("stop_loss");
+                let take_profit = sell_matches.value_of("take_profit");
+                let pair_one: String = pair[0].parse().expect("Expected a valid string literal");
+                let pair_two: String = pair[1].parse().expect("Expected a valid string literal");
+
+                println!(
+                    "Shorting {} {} and Longing {} {}",
+                    order_size, pair_one, order_size, pair_two
+                );
+
+                if let Some(lp) = limit_price {
+                    println!("Entering at this: {} market price", lp);
+                } else {
+                    println!(" Entering at market price");
+                }
+                if let Some(sl) = stop_loss {
+                    println!("Stop loss provided: {}", sl);
+                } else {
+                    println!(" The already set stop loss rules will be used");
+                }
+                if let Some(tp) = take_profit {
+                    println!("Take profit provided: {}", tp);
+                } else {
+                    println!(" The already set default take profit rules will be used");
+                }
+            }
+
+            _ => {
+                println!("Invalid Pair command: We only have pair buy and pair sell");
+            }
+        },
 
         _ => {
             println!("Invalid command: expected commands: (buy, sell, twap, view, pair)");

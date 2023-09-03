@@ -24,14 +24,18 @@ impl Info {
             .await?)
     }
 
-    pub async fn asset_ctx(&self, asset: &str) -> Result<Option<Ctx>, anyhow::Error> {
-        let res = &self
-            .info::<Vec<AssetCtx>>(json!({
+    pub async fn asset_ctxs(&self) -> Result<Vec<AssetCtx>, anyhow::Error> {
+        Ok(self
+            .info(json!({
                     "type": "metaAndAssetCtxs",
             }))
-            .await?;
+            .await?)
+    }
 
-        let universe = match res.get(0) {
+    pub async fn asset_ctx(&self, asset: &str) -> Result<Option<Ctx>, anyhow::Error> {
+        let asset_ctxs = self.asset_ctxs().await?;
+
+        let universe = match asset_ctxs.get(0) {
             Some(AssetCtx::Universe(universe)) => universe,
             _ => return Ok(None),
         };
@@ -42,12 +46,10 @@ impl Info {
             .position(|a| a.name.to_uppercase() == asset.to_uppercase())
             .unwrap();
 
-        let ctxs = match res.get(1) {
+        let ctxs = match asset_ctxs.get(1) {
             Some(AssetCtx::Ctx(ctxs)) => ctxs,
             _ => return Ok(None),
         };
-
-        println!("Position: {}", position);
 
         Ok(Some(ctxs[position].clone()))
     }
