@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use std::thread;
+use std::time::Duration;
 //using version 2.33 not the latest one
 use clap::{App, Arg};
 use ethers::signers::LocalWallet;
@@ -972,37 +973,77 @@ pub async fn cli(config: &Settings) {
 
                     //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
                 }
-                ("sell", Some(twapsell_matches)) => {
-                    let order_size = twapsell_matches
+                ("sell", Some(matches)) => {
+                    let order_size = matches
                         .value_of("order_size")
                         .unwrap()
                         .parse::<f64>()
                         .unwrap();
-                    let asset = twapsell_matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> = twapsell_matches
-                        .value_of("interval")
-                        .unwrap()
-                        .split(",")
-                        .collect();
-
-                    println!(
-                        "twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}",
-                        order_size,
-                        asset,
-                        intervals,
-                        intervals.get(0)
-                    );
+                    let symbol = matches.value_of("asset").unwrap();
+                    let intervals: Vec<&str> =
+                        matches.value_of("interval").unwrap().split(",").collect();
 
                     let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Internal Value");
-                    let interval_range: f64 = intervals[1].parse().expect("Invalid Interval Value");
+                        intervals[0].parse().expect("Invalid Interval Value");
+                    let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
 
                     let amount_asset = order_size / interval_range;
 
-                    println!(
-                        "Selling {} {} at intervals of {} minutes",
-                        amount_asset, asset, interval_minutes
-                    );
+                    let (sz_decimals, asset) = *assets
+                        .get(&symbol.to_uppercase())
+                        .expect("Failed to find asset");
+
+                    println!("Amount to sell: {}", amount_asset);
+
+                    //now place this order at intervals of interval_minutes
+
+                    for i in 0..interval_range as i32 {
+                        let market_price = info
+                            .asset_ctx(&symbol.to_uppercase())
+                            .await
+                            .expect("Failed to fetch asset ctxs")
+                            .expect("Failed to find asset")
+                            .mark_px
+                            .parse::<f64>()
+                            .unwrap();
+
+                        println!("Market price is: {}", market_price);
+                        let slippage = 3.0 / 100.0;
+                        let limit_price = market_price * (1.0 - slippage);
+
+                        let order = OrderRequest {
+                            asset,
+                            is_buy: false,
+                            limit_px: format_limit_price(limit_price),
+                            sz: format_size(amount_asset, sz_decimals),
+                            reduce_only: false,
+                            order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                        };
+
+                        println!("Placing order number: {}", i + 1);
+
+                        let res = exchange.place_order(order).await;
+
+                        match res {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(_order) => {
+                                    // println!("Order placed: {:#?}", order);
+                                    println!("Sell order was successfully placed.\n")
+                                }
+                            },
+                            Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                        }
+
+                        println!("Sleeping for {} minutes", interval_minutes);
+                        thread::sleep(Duration::from_secs((interval_minutes * 60.0) as u64));
+                    }
                 }
                 _ => {
                     println!("No subcommand was used");
