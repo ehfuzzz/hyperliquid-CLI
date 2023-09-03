@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 
 //using version 2.33 not the latest one
 use clap::{App, Arg};
@@ -17,7 +16,7 @@ use crate::hyperliquid::{
     TriggerType,
 };
 use crate::settings::Settings;
-use crate::types::{LimitPrice, MarginType, OrderSize, TpSl};
+use crate::types::{LimitPrice, MarginType, OrderSize, TpSl, TwapInterval};
 
 pub async fn cli(config: &Settings) {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -164,23 +163,17 @@ pub async fn cli(config: &Settings) {
         )
         .subcommand(
             App::new("twap")
-                .about("Handles the twap buy and twap sell logic")
+                .about("Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be bought at market")
                 .subcommand(
                     App::new("buy")
                         .about("twap buy")
                         .arg(
-                            Arg::with_name("order_size")
+                            Arg::with_name("size")
                                 .required(true)
                                 .index(1)
                                 .takes_value(true)
-                                .help("Total Order Size")
-                                .validator(|v| {
-                                    if v.parse::<f64>().is_ok() {
-                                        Ok(())
-                                    } else {
-                                        Err(String::from("Expected a numeric value"))
-                                    }
-                                })
+                                .help("Total order size")
+                                .validator(validate_value_size)
                         )
                         .arg(
                             Arg::with_name("asset")
@@ -195,7 +188,7 @@ pub async fn cli(config: &Settings) {
                                 .index(3)
                                 .takes_value(true)
                                 .help(
-                                    "Time between intervals in minutes, number of intervals e.g 10 means 10 minutes"
+                                    "Time between intervals in minutes, number of intervals e.g 5,10"
                                 )
                         )
                 )
@@ -1137,29 +1130,39 @@ pub async fn cli(config: &Settings) {
 
             match matches.subcommand() {
                 ("buy", Some(matches)) => {
-                    let order_size = matches
-                        .value_of("order_size")
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap();
-                    let symbol = matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> =
-                        matches.value_of("interval").unwrap().split(",").collect();
+                    let sz: OrderSize = matches
+                        .value_of("size")
+                        .expect("Size is required")
+                        .try_into()
+                        .expect("Failed to parse order size");
 
-                    let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Interval Value");
-                    let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
+                    let symbol = matches.value_of("asset").expect("Asset is required");
 
-                    let amount_asset = order_size / interval_range;
+                    let interval: TwapInterval = matches.value_of("interval")
+                    .expect("Interval is required")
+                    .try_into().expect(
+                        "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
+                    );
+
+                    let sz = match sz {
+                        OrderSize::Absolute(sz) => sz,
+
+                        _ => {
+                            println!("{}", "-".repeat(35));
+
+                            println!("\nOnly absolute order size is supported for now");
+                            return;
+                        }
+                    } / interval.num_of_orders as f64;
 
                     let (sz_decimals, asset) = *assets
                         .get(&symbol.to_uppercase())
                         .expect("Failed to find asset");
 
-                    println!("Amount to buy: {}", amount_asset);
+                    let slippage = 3.0 / 100.0;
 
                     //now place this order at intervals of interval_minutes
-                    for i in 0..interval_range as i32 {
+                    for i in 1..=interval.num_of_orders {
                         let market_price = info
                             .asset_ctx(&symbol.to_uppercase())
                             .await
@@ -1169,24 +1172,28 @@ pub async fn cli(config: &Settings) {
                             .parse::<f64>()
                             .unwrap();
 
-                        println!("Market price is: {}", market_price);
-                        let slippage = 3.0 / 100.0;
+                        let sz = sz / market_price;
                         let limit_price = market_price * (1.0 + slippage);
+
+                        println!("{}", "---".repeat(20));
+                        println!("Order {} of {}", i, interval.num_of_orders);
+                        println!("Size in {symbol}: {}", format_size(sz, sz_decimals));
+                        println!(
+                            "Size in USD: {}",
+                            format_size(sz * market_price, sz_decimals)
+                        );
+                        println!("Market price: {}\n", market_price);
 
                         let order = OrderRequest {
                             asset,
                             is_buy: true,
                             limit_px: format_limit_price(limit_price),
-                            sz: format_size(amount_asset, sz_decimals),
+                            sz: format_size(sz, sz_decimals),
                             reduce_only: false,
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                         };
 
-                        println!("Placing order number: {}", i + 1);
-
-                        let res = exchange.place_order(order).await;
-
-                        match res {
+                        match exchange.place_order(order).await {
                             Ok(order) => match order {
                                 ExchangeResponse::Err(err) => {
                                     println!("{:#?}", err);
@@ -1203,8 +1210,11 @@ pub async fn cli(config: &Settings) {
                             }
                         }
 
-                        println!("Sleeping for {} minutes", interval_minutes);
-                        thread::sleep(Duration::from_secs((interval_minutes * 60.0) as u64));
+                        if i != interval.num_of_orders {
+                            println!("Waiting for {} minutes", interval.interval.as_secs() / 60);
+                            println!("{}", "-".repeat(5));
+                            thread::sleep(interval.interval);
+                        }
                     }
                 }
                 ("sell", Some(twapsell_matches)) => {
