@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 //using version 2.33 not the latest one
 use clap::{App, Arg};
 use ethers::signers::LocalWallet;
@@ -16,7 +14,7 @@ use crate::hyperliquid::{
     TriggerType,
 };
 use crate::settings::Settings;
-use crate::types::{LimitPrice, MarginType, OrderSize, TpSl};
+use crate::types::{LimitPrice, MarginType, OrderSize, TpSl, TwapInterval};
 
 pub async fn cli(config: &Settings) {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -163,23 +161,17 @@ pub async fn cli(config: &Settings) {
         )
         .subcommand(
             App::new("twap")
-                .about("Handles the twap buy and twap sell logic")
+                .about("Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be bought at market")
                 .subcommand(
                     App::new("buy")
                         .about("twap buy")
                         .arg(
-                            Arg::with_name("order_size")
+                            Arg::with_name("size")
                                 .required(true)
                                 .index(1)
                                 .takes_value(true)
-                                .help("Total Order Size")
-                                .validator(|v| {
-                                    if v.parse::<f64>().is_ok() {
-                                        Ok(())
-                                    } else {
-                                        Err(String::from("Expected a numeric value"))
-                                    }
-                                })
+                                .help("Total order size")
+                                .validator(validate_value_size)
                         )
                         .arg(
                             Arg::with_name("asset")
@@ -194,7 +186,7 @@ pub async fn cli(config: &Settings) {
                                 .index(3)
                                 .takes_value(true)
                                 .help(
-                                    "Time between intervals in minutes, number of intervals e.g 10 means 10 minutes"
+                                    "Time between intervals in minutes, number of intervals e.g 5,10"
                                 )
                         )
                 )
@@ -202,18 +194,12 @@ pub async fn cli(config: &Settings) {
                     App::new("sell")
                         .about("twap sell")
                         .arg(
-                            Arg::with_name("order_size")
+                            Arg::with_name("size")
                                 .required(true)
                                 .index(1)
                                 .takes_value(true)
-                                .help("Total Order Size")
-                                .validator(|v| {
-                                    if v.parse::<f64>().is_ok() {
-                                        Ok(())
-                                    } else {
-                                        Err(String::from("Expected a numeric value"))
-                                    }
-                                })
+                                .help("Total order size")
+                                .validator(validate_value_size)
                         )
                         .arg(
                             Arg::with_name("asset")
@@ -228,7 +214,7 @@ pub async fn cli(config: &Settings) {
                                 .index(3)
                                 .takes_value(true)
                                 .help(
-                                    "comma separated values of: Time between intervals in minutes, number of intervals e.g 10 means 10 minutes"
+                                    "Time between intervals in minutes, number of intervals e.g 5,10"
                                 )
                         )
                 )
@@ -849,12 +835,208 @@ pub async fn cli(config: &Settings) {
             }
         }
 
-        ("sell", Some(_sell_matches)) => {
-            // let order_size = sell_matches.value_of("order_size");
-            // let asset = sell_matches.value_of("asset");
-            // let limit_price = sell_matches.value_of("limit_price");
-            // let take_profit = sell_matches.value_of("take_profit");
-            // let stop_loss = sell_matches.value_of("stop_loss");
+        ("sell", Some(matches)) => {
+            let order_size: OrderSize = matches
+                .value_of("order_size")
+                .unwrap_or(&config.default_size.value)
+                .try_into()
+                .expect("Failed to parse order size");
+
+            let symbol = matches
+                .value_of("asset")
+                .unwrap_or(&config.default_asset.value);
+
+            let limit_price: LimitPrice = matches
+                .value_of("limit_price")
+                .unwrap_or("@0")
+                .try_into()
+                .expect("Failed to parse limit price");
+
+            let tp: Option<TpSl> = matches.value_of("tp").map(|price| {
+                price.try_into().expect(
+                    "Invalid take profit value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            let sl: Option<TpSl> = matches.value_of("sl").map(|price| {
+                price.try_into().expect(
+                    "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            // ----------------------------------------------
+            let asset_ctx = info
+                .asset_ctx(symbol)
+                .await
+                .expect("Failed to fetch asset ctxs")
+                .expect("Failed to find asset");
+
+            let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+
+            let slippage = 3.0 / 100.0;
+
+            let (order_type, limit_price) = match limit_price {
+                LimitPrice::Absolute(price) => {
+                    if price == 0.0 {
+                        // slippage of 3% for buy 'll be 103/100 = 1.03
+                        (
+                            OrderType::Limit(Limit { tif: Tif::Ioc }),
+                            market_price * (1.0 - slippage),
+                        )
+                    } else {
+                        (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
+                    }
+                }
+            };
+
+            let sz = match order_size {
+                OrderSize::Absolute(sz) => sz,
+                OrderSize::Percent(sz) => {
+                    let state = info
+                        .clearing_house_state()
+                        .await
+                        .expect("Failed to fetch balance");
+
+                    let balance = match config.default_margin.value {
+                        MarginType::Cross => state.cross_margin_summary.account_value,
+                        MarginType::Isolated => state.margin_summary.account_value,
+                    };
+
+                    let balance = balance.parse::<f64>().expect("Failed to parse balance");
+
+                    balance * (sz as f64 / 100.0)
+                }
+            };
+
+            let (sz_decimals, asset) = *assets
+                .get(&symbol.to_uppercase())
+                .expect("Failed to find asset");
+
+            // convert $sz to base asset
+            let sz = sz / market_price;
+
+            println!("{}", "---".repeat(20));
+            // Update leverage
+            println!("{}", "---".repeat(20));
+
+            let order = OrderRequest {
+                asset,
+                is_buy: false,
+                limit_px: format_limit_price(limit_price),
+                sz: format_size(sz, sz_decimals),
+                reduce_only: false,
+                order_type,
+            };
+
+            let limit_price = match &order.order_type {
+                OrderType::Limit(Limit { tif: Tif::Ioc }) => market_price,
+                _ => limit_price,
+            };
+
+            println!(
+                "\nPlacing a sell order for {symbol} at {}",
+                format_limit_price(limit_price)
+            );
+
+            let res = exchange.place_order(order).await;
+            match res {
+                Ok(order) => match order {
+                    ExchangeResponse::Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
+                    ExchangeResponse::Ok(_order) => {
+                        // println!("Order placed: {:#?}", order);
+                        println!("Sell order was successfully placed.\n")
+                    }
+                },
+                Err(err) => {
+                    println!("{:#?}", err);
+                    return;
+                }
+            }
+
+            if tp.is_some() {
+                let trigger_price = match tp {
+                    Some(TpSl::Absolute(value)) => limit_price - value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
+                    Some(TpSl::Fixed(value)) => value,
+
+                    None => unreachable!("Expected a take profit value"),
+                };
+
+                let order_type = OrderType::Trigger(Trigger {
+                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    is_market: true,
+                    tpsl: TriggerType::Tp,
+                });
+
+                let order = OrderRequest {
+                    asset,
+                    is_buy: true,
+                    limit_px: format_limit_price(trigger_price),
+                    sz: format_size(sz, sz_decimals),
+                    reduce_only: true,
+                    order_type,
+                };
+
+                println!(
+                    "Placing a take profit order for {symbol} at {}",
+                    order.limit_px
+                );
+                let res = exchange.place_order(order).await;
+                match res {
+                    Ok(order) => match order {
+                        ExchangeResponse::Err(err) => println!("{:#?}", err),
+                        ExchangeResponse::Ok(_order) => {
+                            // println!("Order placed: {:#?}", order);
+                            println!("Take profit order was successfully placed.\n")
+                        }
+                    },
+                    Err(err) => println!("{:#?}", err),
+                }
+            }
+
+            if sl.is_some() {
+                let trigger_price = match sl {
+                    Some(TpSl::Absolute(value)) => limit_price + value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Fixed(value)) => value,
+
+                    None => unreachable!("Expected a stop loss value"),
+                };
+
+                let order_type = OrderType::Trigger(Trigger {
+                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    is_market: true,
+                    tpsl: TriggerType::Sl,
+                });
+
+                let order = OrderRequest {
+                    asset,
+                    is_buy: true,
+                    limit_px: format_limit_price(trigger_price),
+                    sz: format_size(sz, sz_decimals),
+                    reduce_only: true,
+                    order_type,
+                };
+
+                println!(
+                    "Placing a stop loss order for {symbol} at {}",
+                    order.limit_px
+                );
+                let res = exchange.place_order(order).await;
+                match res {
+                    Ok(order) => match order {
+                        ExchangeResponse::Err(err) => println!("{:#?}", err),
+                        ExchangeResponse::Ok(_order) => {
+                            // println!("Order placed: {:#?}", order);
+                            println!("Stop loss order was successfully placed.\n")
+                        }
+                    },
+                    Err(err) => println!("{:#?}", err),
+                }
+            }
         }
 
         ("scale", Some(scale_matches)) => {
@@ -935,69 +1117,43 @@ pub async fn cli(config: &Settings) {
                 }
             }
         }
-        ("twap", Some(twap_matches)) => {
+        ("twap", Some(matches)) => {
             // twap buy <total order size> <asset symbol>  <time between interval in mins, number of intervals>
 
-            match twap_matches.subcommand() {
-                ("buy", Some(twapbuy_matches)) => {
-                    let order_size = twapbuy_matches
-                        .value_of("order_size")
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap();
-                    let asset = twapbuy_matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> = twapbuy_matches
-                        .value_of("interval")
-                        .unwrap()
-                        .split(",")
-                        .collect();
+            match matches.subcommand() {
+                ("buy", Some(matches)) => {
+                    let sz: OrderSize = matches
+                        .value_of("size")
+                        .expect("Size is required")
+                        .try_into()
+                        .expect("Failed to parse order size");
 
-                    println!(
-                        "twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}",
-                        order_size,
-                        asset,
-                        intervals,
-                        intervals.get(0)
+                    let symbol = matches.value_of("asset").expect("Asset is required");
+
+                    let interval: TwapInterval = matches.value_of("interval")
+                    .expect("Interval is required")
+                    .try_into().expect(
+                        "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
 
-                    let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Interval Value");
-                    let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
+                    let sz = match sz {
+                        OrderSize::Absolute(sz) => sz,
 
-                    let amount_asset = order_size / interval_range;
+                        _ => {
+                            println!("{}", "-".repeat(35));
 
-                    println!(
-                        "Buying {} {} at intervals of {} minutes ",
-                        amount_asset, asset, interval_minutes
-                    );
-
-                    //twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
-                }
-                ("sell", Some(matches)) => {
-                    let order_size = matches
-                        .value_of("order_size")
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap();
-                    let symbol = matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> =
-                        matches.value_of("interval").unwrap().split(",").collect();
-
-                    let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Interval Value");
-                    let interval_range: f64 = intervals[1].parse().expect("Invalid interval Value");
-
-                    let amount_asset = order_size / interval_range;
+                            println!("\nOnly absolute order size is supported for now");
+                            return;
+                        }
+                    } / interval.num_of_orders as f64;
 
                     let (sz_decimals, asset) = *assets
                         .get(&symbol.to_uppercase())
                         .expect("Failed to find asset");
 
-                    println!("Amount to sell: {}", amount_asset);
+                    let slippage = 3.0 / 100.0;
 
-                    //now place this order at intervals of interval_minutes
-
-                    for i in 0..interval_range as i32 {
+                    for i in 1..=interval.num_of_orders {
                         let market_price = info
                             .asset_ctx(&symbol.to_uppercase())
                             .await
@@ -1007,24 +1163,117 @@ pub async fn cli(config: &Settings) {
                             .parse::<f64>()
                             .unwrap();
 
-                        println!("Market price is: {}", market_price);
-                        let slippage = 3.0 / 100.0;
+                        let sz = sz / market_price;
+                        let limit_price = market_price * (1.0 + slippage);
+
+                        println!("{}", "---".repeat(20));
+                        println!("Order {} of {}", i, interval.num_of_orders);
+                        println!("Side: Buy");
+                        println!("Size in {symbol}: {}", format_size(sz, sz_decimals));
+                        println!(
+                            "Size in USD: {}",
+                            format_size(sz * market_price, sz_decimals)
+                        );
+                        println!("Market price: {}\n", market_price);
+
+                        let order = OrderRequest {
+                            asset,
+                            is_buy: true,
+                            limit_px: format_limit_price(limit_price),
+                            sz: format_size(sz, sz_decimals),
+                            reduce_only: false,
+                            order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                        };
+
+                        match exchange.place_order(order).await {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(_order) => {
+                                    // println!("Order placed: {:#?}", order);
+                                    println!("Buy order was successfully placed.\n")
+                                }
+                            },
+                            Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                        }
+
+                        if i != interval.num_of_orders {
+                            println!("Waiting for {} minutes", interval.interval.as_secs() / 60);
+                            println!("{}", "-".repeat(5));
+                            tokio::time::sleep(interval.interval).await;
+                        }
+                    }
+                }
+                ("sell", Some(matches)) => {
+                    let sz: OrderSize = matches
+                        .value_of("size")
+                        .expect("Size is required")
+                        .try_into()
+                        .expect("Failed to parse order size");
+
+                    let symbol = matches.value_of("asset").expect("Asset is required");
+
+                    let interval: TwapInterval = matches.value_of("interval")
+                    .expect("Interval is required")
+                    .try_into().expect(
+                        "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
+                    );
+
+                    let sz = match sz {
+                        OrderSize::Absolute(sz) => sz,
+
+                        _ => {
+                            println!("{}", "-".repeat(35));
+
+                            println!("\nOnly absolute order size is supported for now");
+                            return;
+                        }
+                    } / interval.num_of_orders as f64;
+
+                    let (sz_decimals, asset) = *assets
+                        .get(&symbol.to_uppercase())
+                        .expect("Failed to find asset");
+
+                    let slippage = 3.0 / 100.0;
+
+                    for i in 1..=interval.num_of_orders {
+                        let market_price = info
+                            .asset_ctx(&symbol.to_uppercase())
+                            .await
+                            .expect("Failed to fetch asset ctxs")
+                            .expect("Failed to find asset")
+                            .mark_px
+                            .parse::<f64>()
+                            .unwrap();
+
+                        let sz = sz / market_price;
                         let limit_price = market_price * (1.0 - slippage);
+
+                        println!("{}", "---".repeat(20));
+                        println!("Order {} of {}", i, interval.num_of_orders);
+                        println!("Side: Sell");
+                        println!("Size in {symbol}: {}", format_size(sz, sz_decimals));
+                        println!(
+                            "Size in USD: {}",
+                            format_size(sz * market_price, sz_decimals)
+                        );
+                        println!("Market price: {}\n", market_price);
 
                         let order = OrderRequest {
                             asset,
                             is_buy: false,
                             limit_px: format_limit_price(limit_price),
-                            sz: format_size(amount_asset, sz_decimals),
+                            sz: format_size(sz, sz_decimals),
                             reduce_only: false,
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                         };
 
-                        println!("Placing order number: {}", i + 1);
-
-                        let res = exchange.place_order(order).await;
-
-                        match res {
+                        match exchange.place_order(order).await {
                             Ok(order) => match order {
                                 ExchangeResponse::Err(err) => {
                                     println!("{:#?}", err);
@@ -1041,12 +1290,15 @@ pub async fn cli(config: &Settings) {
                             }
                         }
 
-                        println!("Sleeping for {} minutes", interval_minutes);
-                        thread::sleep(Duration::from_secs((interval_minutes * 60.0) as u64));
+                        if i != interval.num_of_orders {
+                            println!("Waiting for {} minutes", interval.interval.as_secs() / 60);
+                            println!("{}", "-".repeat(5));
+                            tokio::time::sleep(interval.interval).await;
+                        }
                     }
                 }
                 _ => {
-                    println!("No subcommand was used");
+                    println!("No matching pattern");
                 }
             }
         }
