@@ -57,6 +57,28 @@ impl TryFrom<&str> for LimitPrice {
     }
 }
 
+#[derive(Deserialize)]
+pub struct Pair {
+    pub base: String,
+    pub quote: String,
+}
+
+impl TryFrom<&str> for Pair {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value = value.trim();
+        let mut value = value.split("/");
+        let first = value.next().ok_or("Invalid pair")?;
+        let second = value.next().ok_or("Invalid pair")?;
+
+        Ok(Self {
+            base: first.to_string(),
+            quote: second.to_string(),
+        })
+    }
+}
+
 pub enum TpSl {
     Percent(u8),   // 10%
     Fixed(f64),    // 1990
