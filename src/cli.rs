@@ -843,12 +843,208 @@ pub async fn cli(config: &Settings) {
             }
         }
 
-        ("sell", Some(_sell_matches)) => {
-            // let order_size = sell_matches.value_of("order_size");
-            // let asset = sell_matches.value_of("asset");
-            // let limit_price = sell_matches.value_of("limit_price");
-            // let take_profit = sell_matches.value_of("take_profit");
-            // let stop_loss = sell_matches.value_of("stop_loss");
+        ("sell", Some(matches)) => {
+            let order_size: OrderSize = matches
+                .value_of("order_size")
+                .unwrap_or(&config.default_size.value)
+                .try_into()
+                .expect("Failed to parse order size");
+
+            let symbol = matches
+                .value_of("asset")
+                .unwrap_or(&config.default_asset.value);
+
+            let limit_price: LimitPrice = matches
+                .value_of("limit_price")
+                .unwrap_or("@0")
+                .try_into()
+                .expect("Failed to parse limit price");
+
+            let tp: Option<TpSl> = matches.value_of("tp").map(|price| {
+                price.try_into().expect(
+                    "Invalid take profit value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            let sl: Option<TpSl> = matches.value_of("sl").map(|price| {
+                price.try_into().expect(
+                    "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            // ----------------------------------------------
+            let asset_ctx = info
+                .asset_ctx(symbol)
+                .await
+                .expect("Failed to fetch asset ctxs")
+                .expect("Failed to find asset");
+
+            let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
+
+            let slippage = 3.0 / 100.0;
+
+            let (order_type, limit_price) = match limit_price {
+                LimitPrice::Absolute(price) => {
+                    if price == 0.0 {
+                        // slippage of 3% for buy 'll be 103/100 = 1.03
+                        (
+                            OrderType::Limit(Limit { tif: Tif::Ioc }),
+                            market_price * (1.0 - slippage),
+                        )
+                    } else {
+                        (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
+                    }
+                }
+            };
+
+            let sz = match order_size {
+                OrderSize::Absolute(sz) => sz,
+                OrderSize::Percent(sz) => {
+                    let state = info
+                        .clearing_house_state()
+                        .await
+                        .expect("Failed to fetch balance");
+
+                    let balance = match config.default_margin.value {
+                        MarginType::Cross => state.cross_margin_summary.account_value,
+                        MarginType::Isolated => state.margin_summary.account_value,
+                    };
+
+                    let balance = balance.parse::<f64>().expect("Failed to parse balance");
+
+                    balance * (sz as f64 / 100.0)
+                }
+            };
+
+            let (sz_decimals, asset) = *assets
+                .get(&symbol.to_uppercase())
+                .expect("Failed to find asset");
+
+            // convert $sz to base asset
+            let sz = sz / market_price;
+
+            println!("{}", "---".repeat(20));
+            // Update leverage
+            println!("{}", "---".repeat(20));
+
+            let order = OrderRequest {
+                asset,
+                is_buy: false,
+                limit_px: format_limit_price(limit_price),
+                sz: format_size(sz, sz_decimals),
+                reduce_only: false,
+                order_type,
+            };
+
+            let limit_price = match &order.order_type {
+                OrderType::Limit(Limit { tif: Tif::Ioc }) => market_price,
+                _ => limit_price,
+            };
+
+            println!(
+                "\nPlacing a sell order for {symbol} at {}",
+                format_limit_price(limit_price)
+            );
+
+            let res = exchange.place_order(order).await;
+            match res {
+                Ok(order) => match order {
+                    ExchangeResponse::Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
+                    ExchangeResponse::Ok(_order) => {
+                        // println!("Order placed: {:#?}", order);
+                        println!("Sell order was successfully placed.\n")
+                    }
+                },
+                Err(err) => {
+                    println!("{:#?}", err);
+                    return;
+                }
+            }
+
+            if tp.is_some() {
+                let trigger_price = match tp {
+                    Some(TpSl::Absolute(value)) => limit_price - value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
+                    Some(TpSl::Fixed(value)) => value,
+
+                    None => unreachable!("Expected a take profit value"),
+                };
+
+                let order_type = OrderType::Trigger(Trigger {
+                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    is_market: true,
+                    tpsl: TriggerType::Tp,
+                });
+
+                let order = OrderRequest {
+                    asset,
+                    is_buy: true,
+                    limit_px: format_limit_price(trigger_price),
+                    sz: format_size(sz, sz_decimals),
+                    reduce_only: true,
+                    order_type,
+                };
+
+                println!(
+                    "Placing a take profit order for {symbol} at {}",
+                    order.limit_px
+                );
+                let res = exchange.place_order(order).await;
+                match res {
+                    Ok(order) => match order {
+                        ExchangeResponse::Err(err) => println!("{:#?}", err),
+                        ExchangeResponse::Ok(_order) => {
+                            // println!("Order placed: {:#?}", order);
+                            println!("Take profit order was successfully placed.\n")
+                        }
+                    },
+                    Err(err) => println!("{:#?}", err),
+                }
+            }
+
+            if sl.is_some() {
+                let trigger_price = match sl {
+                    Some(TpSl::Absolute(value)) => limit_price + value,
+                    Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
+                    Some(TpSl::Fixed(value)) => value,
+
+                    None => unreachable!("Expected a stop loss value"),
+                };
+
+                let order_type = OrderType::Trigger(Trigger {
+                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    is_market: true,
+                    tpsl: TriggerType::Sl,
+                });
+
+                let order = OrderRequest {
+                    asset,
+                    is_buy: true,
+                    limit_px: format_limit_price(trigger_price),
+                    sz: format_size(sz, sz_decimals),
+                    reduce_only: true,
+                    order_type,
+                };
+
+                println!(
+                    "Placing a stop loss order for {symbol} at {}",
+                    order.limit_px
+                );
+                let res = exchange.place_order(order).await;
+                match res {
+                    Ok(order) => match order {
+                        ExchangeResponse::Err(err) => println!("{:#?}", err),
+                        ExchangeResponse::Ok(_order) => {
+                            // println!("Order placed: {:#?}", order);
+                            println!("Stop loss order was successfully placed.\n")
+                        }
+                    },
+                    Err(err) => println!("{:#?}", err),
+                }
+            }
         }
 
         ("scale", Some(scale_matches)) => {
