@@ -1485,11 +1485,16 @@ pub async fn cli(config: &Settings) {
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                 };
 
+                                println!("{}", "---".repeat(20));
+                                println!("Order 1 of 2");
+                                println!("Side: Buy");
                                 println!(
-                                    "\nPlacing a buy order for {} at {}",
+                                    "Size in {}: {}",
                                     pair.base,
-                                    format_limit_price(limit_price)
+                                    format_size(sz, base_sz_decimals)
                                 );
+                                println!("Size in USD: {}", format_size(base_sz, base_sz_decimals));
+                                println!("Market price: {}\n", market_price);
 
                                 match exchange.place_order(order).await {
                                     Ok(order) => match order {
@@ -1534,11 +1539,19 @@ pub async fn cli(config: &Settings) {
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                 };
 
+                                println!("{}", "---".repeat(20));
+                                println!("Order 2 of 2");
+                                println!("Side: Sell");
                                 println!(
-                                    "\nPlacing a sell order for {} at {}",
+                                    "Size in {}: {}",
                                     pair.quote,
-                                    format_limit_price(limit_price)
+                                    format_size(sz, quote_sz_decimals)
                                 );
+                                println!(
+                                    "Size in USD: {}",
+                                    format_size(quote_sz, quote_sz_decimals)
+                                );
+                                println!("Market price: {}\n", market_price);
 
                                 match exchange.place_order(order).await {
                                     Ok(order) => match order {
@@ -1560,7 +1573,7 @@ pub async fn cli(config: &Settings) {
                         } else {
                             // If limit price for eth/btc is .06, wait for the eth/btc ratio to become .06,
                             // then long eth and short btc at market
-                            let (base_sz, base_limit_price, quote_sz, quote_market_price) = loop {
+                            let (base_sz, base_market_price, quote_sz, quote_market_price) = loop {
                                 let base_limit_price = {
                                     let base_asset_ctx = info
                                         .asset_ctx(&pair.base)
@@ -1615,18 +1628,26 @@ pub async fn cli(config: &Settings) {
                                     asset: base_asset,
                                     is_buy: true,
                                     limit_px: format_limit_price(
-                                        base_limit_price * (1.0 + slippage),
+                                        base_market_price * (1.0 + slippage),
                                     ),
                                     sz: format_size(base_sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                 };
 
+                                println!("{}", "---".repeat(20));
+                                println!("Order 1 of 2");
+                                println!("Side: Buy");
                                 println!(
-                                    "\nPlacing a buy order for {} at {}",
+                                    "Size in {}: {}",
                                     pair.base,
-                                    format_limit_price(base_limit_price)
+                                    format_size(base_sz, base_sz_decimals)
                                 );
+                                println!(
+                                    "Size in USD: {}",
+                                    format_size(base_sz * base_market_price, base_sz_decimals)
+                                );
+                                println!("Market price: {}\n", base_market_price);
 
                                 match exchange.place_order(order).await {
                                     Ok(order) => match order {
@@ -1658,11 +1679,19 @@ pub async fn cli(config: &Settings) {
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                 };
 
+                                println!("{}", "---".repeat(20));
+                                println!("Order 2 of 2");
+                                println!("Side: Sell");
                                 println!(
-                                    "\nPlacing a sell order for {} at {}",
+                                    "Size in {}: {}",
                                     pair.quote,
-                                    format_limit_price(quote_market_price)
+                                    format_size(quote_sz, quote_sz_decimals)
                                 );
+                                println!(
+                                    "Size in USD: {}",
+                                    format_size(quote_sz * quote_market_price, quote_sz_decimals)
+                                );
+                                println!("Market price: {}\n", quote_market_price);
 
                                 match exchange.place_order(order).await {
                                     Ok(order) => match order {
