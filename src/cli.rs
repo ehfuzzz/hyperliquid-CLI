@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
-
 //using version 2.33 not the latest one
 use clap::{App, Arg};
 use ethers::signers::LocalWallet;
@@ -196,18 +194,12 @@ pub async fn cli(config: &Settings) {
                     App::new("sell")
                         .about("twap sell")
                         .arg(
-                            Arg::with_name("order_size")
+                            Arg::with_name("size")
                                 .required(true)
                                 .index(1)
                                 .takes_value(true)
-                                .help("Total Order Size")
-                                .validator(|v| {
-                                    if v.parse::<f64>().is_ok() {
-                                        Ok(())
-                                    } else {
-                                        Err(String::from("Expected a numeric value"))
-                                    }
-                                })
+                                .help("Total order size")
+                                .validator(validate_value_size)
                         )
                         .arg(
                             Arg::with_name("asset")
@@ -222,7 +214,7 @@ pub async fn cli(config: &Settings) {
                                 .index(3)
                                 .takes_value(true)
                                 .help(
-                                    "comma separated values of: Time between intervals in minutes, number of intervals e.g 10 means 10 minutes"
+                                    "Time between intervals in minutes, number of intervals e.g 5,10"
                                 )
                         )
                 )
@@ -1176,6 +1168,7 @@ pub async fn cli(config: &Settings) {
 
                         println!("{}", "---".repeat(20));
                         println!("Order {} of {}", i, interval.num_of_orders);
+                        println!("Side: Buy");
                         println!("Size in {symbol}: {}", format_size(sz, sz_decimals));
                         println!(
                             "Size in USD: {}",
@@ -1212,41 +1205,97 @@ pub async fn cli(config: &Settings) {
                         if i != interval.num_of_orders {
                             println!("Waiting for {} minutes", interval.interval.as_secs() / 60);
                             println!("{}", "-".repeat(5));
-                            thread::sleep(interval.interval);
+                            tokio::time::sleep(interval.interval).await;
                         }
                     }
                 }
-                ("sell", Some(twapsell_matches)) => {
-                    let order_size = twapsell_matches
-                        .value_of("order_size")
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap();
-                    let asset = twapsell_matches.value_of("asset").unwrap();
-                    let intervals: Vec<&str> = twapsell_matches
-                        .value_of("interval")
-                        .unwrap()
-                        .split(",")
-                        .collect();
+                ("sell", Some(matches)) => {
+                    let sz: OrderSize = matches
+                        .value_of("size")
+                        .expect("Size is required")
+                        .try_into()
+                        .expect("Failed to parse order size");
 
-                    println!(
-                    "twap sell order size: {}, asset-symbol: {}, intervals: {:?}-> Interval1: {:?}",
-                    order_size,
-                    asset,
-                    intervals,
-                    intervals.get(0)
-                );
+                    let symbol = matches.value_of("asset").expect("Asset is required");
 
-                    let interval_minutes: f64 =
-                        intervals[0].parse().expect("Invalid Internal Value");
-                    let interval_range: f64 = intervals[1].parse().expect("Invalid Interval Value");
-
-                    let amount_asset = order_size / interval_range;
-
-                    println!(
-                        "Selling {} {} at intervals of {} minutes",
-                        amount_asset, asset, interval_minutes
+                    let interval: TwapInterval = matches.value_of("interval")
+                    .expect("Interval is required")
+                    .try_into().expect(
+                        "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
+
+                    let sz = match sz {
+                        OrderSize::Absolute(sz) => sz,
+
+                        _ => {
+                            println!("{}", "-".repeat(35));
+
+                            println!("\nOnly absolute order size is supported for now");
+                            return;
+                        }
+                    } / interval.num_of_orders as f64;
+
+                    let (sz_decimals, asset) = *assets
+                        .get(&symbol.to_uppercase())
+                        .expect("Failed to find asset");
+
+                    let slippage = 3.0 / 100.0;
+
+                    for i in 1..=interval.num_of_orders {
+                        let market_price = info
+                            .asset_ctx(&symbol.to_uppercase())
+                            .await
+                            .expect("Failed to fetch asset ctxs")
+                            .expect("Failed to find asset")
+                            .mark_px
+                            .parse::<f64>()
+                            .unwrap();
+
+                        let sz = sz / market_price;
+                        let limit_price = market_price * (1.0 - slippage);
+
+                        println!("{}", "---".repeat(20));
+                        println!("Order {} of {}", i, interval.num_of_orders);
+                        println!("Side: Sell");
+                        println!("Size in {symbol}: {}", format_size(sz, sz_decimals));
+                        println!(
+                            "Size in USD: {}",
+                            format_size(sz * market_price, sz_decimals)
+                        );
+                        println!("Market price: {}\n", market_price);
+
+                        let order = OrderRequest {
+                            asset,
+                            is_buy: false,
+                            limit_px: format_limit_price(limit_price),
+                            sz: format_size(sz, sz_decimals),
+                            reduce_only: false,
+                            order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                        };
+
+                        match exchange.place_order(order).await {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(_order) => {
+                                    // println!("Order placed: {:#?}", order);
+                                    println!("Sell order was successfully placed.\n")
+                                }
+                            },
+                            Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                        }
+
+                        if i != interval.num_of_orders {
+                            println!("Waiting for {} minutes", interval.interval.as_secs() / 60);
+                            println!("{}", "-".repeat(5));
+                            tokio::time::sleep(interval.interval).await;
+                        }
+                    }
                 }
                 _ => {
                     println!("No matching pattern");
