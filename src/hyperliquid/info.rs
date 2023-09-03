@@ -27,7 +27,7 @@ impl Info {
     pub async fn asset_ctxs(&self) -> Result<Vec<AssetCtx>, anyhow::Error> {
         Ok(self
             .info(json!({
-                    "type": "assetCtxs",
+                    "type": "metaAndAssetCtxs",
             }))
             .await?)
     }

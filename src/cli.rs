@@ -1310,7 +1310,7 @@ pub async fn cli(config: &Settings) {
         ("pair", Some(matches)) => match matches.subcommand() {
             ("buy", Some(matches)) => {
                 let sz: f64 = match matches
-                    .value_of("order_size")
+                    .value_of("size")
                     .unwrap()
                     .try_into()
                     .expect("Failed to parse order size")
