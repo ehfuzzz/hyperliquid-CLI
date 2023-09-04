@@ -296,7 +296,7 @@ pub async fn cli(config: &Settings) {
                         .arg(
                             Arg::with_name("sl")
                                 .required(false)
-                                .index(4)
+                                .long("sl")
                                 .takes_value(true)
                                 .help("Stop loss")
                                 .validator(validate_value)
@@ -304,7 +304,7 @@ pub async fn cli(config: &Settings) {
                         .arg(
                             Arg::with_name("tp")
                                 .required(false)
-                                .index(5)
+                                .long("tp")
                                 .takes_value(true)
                                 .help("Take profit")
                                 .validator(validate_value)
@@ -339,7 +339,7 @@ pub async fn cli(config: &Settings) {
                         .arg(
                             Arg::with_name("sl")
                                 .required(false)
-                                .index(4)
+                                .long("sl")
                                 .takes_value(true)
                                 .help("stop loss")
                                 .validator(validate_value)
@@ -347,7 +347,7 @@ pub async fn cli(config: &Settings) {
                         .arg(
                             Arg::with_name("tp")
                                 .required(false)
-                                .index(5)
+                                .long("tp")
                                 .takes_value(true)
                                 .help("Take profit")
                                 .validator(validate_value)
@@ -1212,7 +1212,7 @@ pub async fn cli(config: &Settings) {
                     .expect("Failed to find asset");
                 let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
 
-                let(sz_decimals, asset) = *assets
+                let (sz_decimals, asset) = *assets
                     .get(&symbol.to_uppercase())
                     .expect("Failed to find asset");
 
@@ -1220,7 +1220,7 @@ pub async fn cli(config: &Settings) {
 
                 let sz = (sz_per_interval.size / sz_per_interval.interval as f64) / market_price;
 
-                for i in 0..sz_per_interval.interval{
+                for i in 0..sz_per_interval.interval {
                     let limit_price = lower + (interval * i as f64);
 
                     println!("{}", "---".repeat(20));
@@ -1269,8 +1269,6 @@ pub async fn cli(config: &Settings) {
                         }
                     }
                 }
-                
-       
             }
             _ => {
                 println!("No matching pattern");
@@ -1660,13 +1658,14 @@ pub async fn cli(config: &Settings) {
                                 println!("Market price: {}\n", market_price);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
-                                        }
-                                        ExchangeResponse::Ok(order) => {
-                                            order.data.statuses.iter().for_each(|status| match status {
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1679,8 +1678,9 @@ pub async fn cli(config: &Settings) {
                                                     println!("Order failed with error: {:#?}\n", msg)
                                                 }
                                             });
+                                            }
                                         }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -1728,13 +1728,14 @@ pub async fn cli(config: &Settings) {
                                 println!("Market price: {}\n", market_price);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
-                                        }
-                                        ExchangeResponse::Ok(order) => {
-                                            order.data.statuses.iter().for_each(|status| match status {
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1747,8 +1748,9 @@ pub async fn cli(config: &Settings) {
                                                     println!("Order failed with error: {:#?}\n", msg)
                                                 }
                                             });
+                                            }
                                         }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -1791,11 +1793,10 @@ pub async fn cli(config: &Settings) {
                                 };
 
                                 let current_ratio =
-                                    format!("{:.2}", 
-                                    base_limit_price / quote_market_price
-                                    ).parse::<f64>().unwrap();
+                                    format!("{:.2}", base_limit_price / quote_market_price)
+                                        .parse::<f64>()
+                                        .unwrap();
 
-                            
                                 if current_ratio == target {
                                     println!("Ratio reached: {}", current_ratio);
                                     let base_sz = base_sz / base_limit_price;
@@ -1848,13 +1849,14 @@ pub async fn cli(config: &Settings) {
                                 println!("Ratio: {}\n", current_ratio);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
-                                        }
-                                        ExchangeResponse::Ok(order) => {
-                                            order.data.statuses.iter().for_each(|status| match status {
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1867,8 +1869,9 @@ pub async fn cli(config: &Settings) {
                                                     println!("Order failed with error: {:#?}\n", msg)
                                                 }
                                             });
+                                            }
                                         }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -1904,13 +1907,14 @@ pub async fn cli(config: &Settings) {
                                 println!("Ratio: {}\n", current_ratio);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
-                                        }
-                                        ExchangeResponse::Ok(order) => {
-                                            order.data.statuses.iter().for_each(|status| match status {
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1923,8 +1927,9 @@ pub async fn cli(config: &Settings) {
                                                     println!("Order failed with error: {:#?}\n", msg)
                                                 }
                                             });
+                                            }
                                         }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -1933,14 +1938,13 @@ pub async fn cli(config: &Settings) {
                             }
                         }
 
-                    
-                     if tp.is_none() && sl.is_none() {
-                        return;
-                    };
+                        if tp.is_none() && sl.is_none() {
+                            return;
+                        };
 
-                    println!("Monitoring positions for tp or sl\n---");
+                        println!("Monitoring positions for tp or sl\n---");
 
-                    let (exit_long_order, exit_short_order,current_ratio) =   loop {
+                        let (exit_long_order, exit_short_order, current_ratio) = loop {
                             let base_market_price = {
                                 let base_asset_ctx = info
                                     .asset_ctx(&pair.base)
@@ -1967,17 +1971,14 @@ pub async fn cli(config: &Settings) {
                             };
 
                             let current_ratio =
-                            format!("{:.2}", 
-                            base_market_price /quote_market_price
-                            ).parse::<f64>().unwrap();
+                                format!("{:.2}", base_market_price / quote_market_price)
+                                    .parse::<f64>()
+                                    .unwrap();
 
                             // check if tp or sl has been reached
                             if let Some(tp) = tp {
                                 if current_ratio == tp {
-                                    println!(
-                                        "Take profit reached: {} == {}",
-                                        current_ratio, tp
-                                    );
+                                    println!("Take profit reached: {} == {}", current_ratio, tp);
 
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
@@ -2001,17 +2002,13 @@ pub async fn cli(config: &Settings) {
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                     };
 
-                                    break (exit_long_order, exit_short_order,current_ratio);
+                                    break (exit_long_order, exit_short_order, current_ratio);
                                 }
                             }
 
                             if let Some(sl) = sl {
-
                                 if current_ratio == sl {
-                                    println!(
-                                        "Stop loss reached: {} == {}",
-                                        current_ratio, sl
-                                    );
+                                    println!("Stop loss reached: {} == {}", current_ratio, sl);
 
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
@@ -2034,7 +2031,6 @@ pub async fn cli(config: &Settings) {
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                     };
-
 
                                     break (exit_long_order, exit_short_order, current_ratio);
                                 }
@@ -2050,92 +2046,95 @@ pub async fn cli(config: &Settings) {
                             );
 
                             tokio::time::sleep(Duration::from_secs(5)).await;
-
-                        
                         };
-                    
-                    
-                    // place exit orders
-                    println!("{}", "---".repeat(20));
-                    println!("Order 1 of 2");
-                    println!("Side: Sell");
-                    println!(
-                        "Size in {}: {}",
-                        pair.base,
-                        format_size(base_sz, base_sz_decimals)
-                    );
-                    println!("Ratio: {}\n", current_ratio);
 
-                    match exchange.place_order(exit_long_order).await {
-                        Ok(order) => match order {
-                            ExchangeResponse::Err(err) => {
+                        // place exit orders
+                        println!("{}", "---".repeat(20));
+                        println!("Order 1 of 2");
+                        println!("Side: Sell");
+                        println!(
+                            "Size in {}: {}",
+                            pair.base,
+                            format_size(base_sz, base_sz_decimals)
+                        );
+                        println!("Ratio: {}\n", current_ratio);
+
+                        match exchange.place_order(exit_long_order).await {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(order) => {
+                                    order.data.statuses.iter().for_each(|status| match status {
+                                        OrderStatus::Filled(order) => {
+                                            println!(
+                                                "Order {} was successfully filled.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Resting(order) => {
+                                            println!(
+                                                "Order {} was successfully placed.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Error(msg) => {
+                                            println!("Order failed with error: {:#?}\n", msg)
+                                        }
+                                    });
+                                }
+                            },
+                            Err(err) => {
                                 println!("{:#?}", err);
                                 return;
                             }
-                            ExchangeResponse::Ok(order) => {
-                                order.data.statuses.iter().for_each(|status| match status {
-                                    OrderStatus::Filled(order) => {
-                                        println!("Order {} was successfully filled.\n", order.oid);
-                                        
-                                    }
-                                    OrderStatus::Resting(order) => {
-                                        println!("Order {} was successfully placed.\n", order.oid);
-                                        
-                                    }
-                                    OrderStatus::Error(msg) => {
-                                        println!("Order failed with error: {:#?}\n", msg)
-                                    }
-                                });
-                            }
-                        },
-                        Err(err) => {
-                            println!("{:#?}", err);
-                            return;
                         }
-                    }
 
+                        println!("{}", "---".repeat(20));
+                        println!("Order 2 of 2");
+                        println!("Side: Buy");
+                        println!(
+                            "Size in {}: {}",
+                            pair.quote,
+                            format_size(quote_sz, quote_sz_decimals)
+                        );
+                        println!("Ratio: {}\n", current_ratio);
 
-                    println!("{}", "---".repeat(20));
-                    println!("Order 2 of 2");
-                    println!("Side: Buy");
-                    println!(
-                        "Size in {}: {}",
-                        pair.quote,
-                        format_size(quote_sz, quote_sz_decimals)
-                    );
-                    println!("Ratio: {}\n", current_ratio);
-
-                    match exchange.place_order(exit_short_order).await {
-                        Ok(order) => match order {
-                            ExchangeResponse::Err(err) => {
+                        match exchange.place_order(exit_short_order).await {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(order) => {
+                                    order.data.statuses.iter().for_each(|status| match status {
+                                        OrderStatus::Filled(order) => {
+                                            println!(
+                                                "Order {} was successfully filled.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Resting(order) => {
+                                            println!(
+                                                "Order {} was successfully placed.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Error(msg) => {
+                                            println!("Order failed with error: {:#?}\n", msg)
+                                        }
+                                    });
+                                }
+                            },
+                            Err(err) => {
                                 println!("{:#?}", err);
                                 return;
                             }
-                            ExchangeResponse::Ok(order) => {
-                                order.data.statuses.iter().for_each(|status| match status {
-                                    OrderStatus::Filled(order) => {
-                                        println!("Order {} was successfully filled.\n", order.oid);
-                                        
-                                    }
-                                    OrderStatus::Resting(order) => {
-                                        println!("Order {} was successfully placed.\n", order.oid);
-                                        
-                                    }
-                                    OrderStatus::Error(msg) => {
-                                        println!("Order failed with error: {:#?}\n", msg)
-                                    }
-                                });
-                            }
-                        },
-                        Err(err) => {
-                            println!("{:#?}", err);
-                            return;
                         }
                     }
-
                 }
             }
-        }
             ("sell", Some(matches)) => {
                 let sz: f64 = match matches
                     .value_of("size")
@@ -2164,15 +2163,15 @@ pub async fn cli(config: &Settings) {
                     .try_into()
                     .expect("Failed to parse limit price");
 
-                let _tp: Option<TpSl> = matches.value_of("tp").map(|price| {
-                        price.try_into().expect(
-                            "Invalid take profit value, expected a number or a percentage value e.g 10%",
-                        )
-                    });
-
-                let _sl: Option<TpSl> = matches.value_of("sl").map(|price| {
-                    price.try_into().expect(
+                let sl: Option<f64> = matches.value_of("sl").map(|price| {
+                    price.parse::<f64>().expect(
                         "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                    )
+                });
+
+                let tp: Option<f64> = matches.value_of("tp").map(|price| {
+                    price.parse::<f64>().expect(
+                        "Invalid take profit value, expected a number or a percentage value e.g 10%",
                     )
                 });
 
@@ -2227,16 +2226,29 @@ pub async fn cli(config: &Settings) {
                                 println!("Market price: {}\n", market_price);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
+                                                OrderStatus::Filled(order) => {
+                                                    println!("Order {} was successfully filled.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Resting(order) => {
+                                                    println!("Order {} was successfully placed.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Error(msg) => {
+                                                    println!("Order failed with error: {:#?}\n", msg)
+                                                }
+                                            });
+                                            }
                                         }
-                                        ExchangeResponse::Ok(_order) => {
-                                            // println!("Order placed: {:#?}", order);
-                                            println!("Sell order was successfully placed.\n")
-                                        }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2284,16 +2296,29 @@ pub async fn cli(config: &Settings) {
                                 println!("Market price: {}\n", market_price);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
+                                                OrderStatus::Filled(order) => {
+                                                    println!("Order {} was successfully filled.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Resting(order) => {
+                                                    println!("Order {} was successfully placed.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Error(msg) => {
+                                                    println!("Order failed with error: {:#?}\n", msg)
+                                                }
+                                            });
+                                            }
                                         }
-                                        ExchangeResponse::Ok(_order) => {
-                                            // println!("Order placed: {:#?}", order);
-                                            println!("Buy order was successfully placed.\n")
-                                        }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2311,7 +2336,7 @@ pub async fn cli(config: &Settings) {
                                 quote_market_price,
                                 current_ratio,
                             ) = loop {
-                                let base_limit_price = {
+                                let base_market_price = {
                                     let base_asset_ctx = info
                                         .asset_ctx(&pair.base)
                                         .await
@@ -2336,16 +2361,19 @@ pub async fn cli(config: &Settings) {
                                     quote_asset_ctx.mark_px.parse::<f64>().unwrap()
                                 };
 
-                                let current_ratio = base_limit_price / quote_market_price;
+                                let current_ratio =
+                                    format!("{:.2}", base_market_price / quote_market_price)
+                                        .parse::<f64>()
+                                        .unwrap();
 
                                 if current_ratio == target {
                                     println!("Ratio reached: {}", current_ratio);
-                                    let base_sz = base_sz / base_limit_price;
+                                    let base_sz = base_sz / base_market_price;
                                     let quote_sz = quote_sz / quote_market_price;
 
                                     break (
                                         base_sz,
-                                        base_limit_price,
+                                        base_market_price,
                                         quote_sz,
                                         quote_market_price,
                                         current_ratio,
@@ -2354,9 +2382,9 @@ pub async fn cli(config: &Settings) {
 
                                 println!(
                                     "Current Ratio: {}, Target Ratio: {}, Diff: {}. Checking again in 5 seconds\n---",
-                                    format!("{:.4}", current_ratio).parse::<f64>().unwrap(),
-                                    format!("{:.4}", target).parse::<f64>().unwrap(),
-                                    format!("{:.4}", current_ratio - target).parse::<f64>().unwrap(),
+                                    format!("{:.2}", current_ratio).parse::<f64>().unwrap(),
+                                    format!("{:.2}", target).parse::<f64>().unwrap(),
+                                    format!("{:.2}", current_ratio - target).parse::<f64>().unwrap(),
                                 );
                                 tokio::time::sleep(Duration::from_secs(5)).await;
                             };
@@ -2371,7 +2399,7 @@ pub async fn cli(config: &Settings) {
                                     ),
                                     sz: format_size(base_sz, base_sz_decimals),
                                     reduce_only: false,
-                                  order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2390,16 +2418,29 @@ pub async fn cli(config: &Settings) {
                                 println!("Ratio: {}\n", current_ratio);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
+                                                OrderStatus::Filled(order) => {
+                                                    println!("Order {} was successfully filled.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Resting(order) => {
+                                                    println!("Order {} was successfully placed.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Error(msg) => {
+                                                    println!("Order failed with error: {:#?}\n", msg)
+                                                }
+                                            });
+                                            }
                                         }
-                                        ExchangeResponse::Ok(_order) => {
-                                            // println!("Order placed: {:#?}", order);
-                                            println!("Sell order was successfully placed.\n")
-                                        }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2436,21 +2477,229 @@ pub async fn cli(config: &Settings) {
                                 println!("Ratio: {}\n", current_ratio);
 
                                 match exchange.place_order(order).await {
-                                    Ok(order) => match order {
-                                        ExchangeResponse::Err(err) => {
-                                            println!("{:#?}", err);
-                                            return;
+                                    Ok(order) => {
+                                        match order {
+                                            ExchangeResponse::Err(err) => {
+                                                println!("{:#?}", err);
+                                                return;
+                                            }
+                                            ExchangeResponse::Ok(order) => {
+                                                order.data.statuses.iter().for_each(|status| match status {
+                                                OrderStatus::Filled(order) => {
+                                                    println!("Order {} was successfully filled.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Resting(order) => {
+                                                    println!("Order {} was successfully placed.\n", order.oid);
+                                                    
+                                                }
+                                                OrderStatus::Error(msg) => {
+                                                    println!("Order failed with error: {:#?}\n", msg)
+                                                }
+                                            });
+                                            }
                                         }
-                                        ExchangeResponse::Ok(_order) => {
-                                            // println!("Order placed: {:#?}", order);
-                                            println!("Buy order was successfully placed.\n")
-                                        }
-                                    },
+                                    }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
                                     }
                                 }
+                            }
+                        }
+
+                        if tp.is_none() && sl.is_none() {
+                            return;
+                        };
+
+                        println!("Monitoring positions for tp or sl\n---");
+
+                        let (exit_short_order, exit_long_order, current_ratio) = loop {
+                            let base_market_price = {
+                                let base_asset_ctx = info
+                                    .asset_ctx(&pair.base)
+                                    .await
+                                    .expect("Failed to fetch asset ctxs")
+                                    .expect(&format!(
+                                        "Failed to find quote asset:  {}",
+                                        pair.quote
+                                    ));
+                                base_asset_ctx.mark_px.parse::<f64>().unwrap()
+                            };
+
+                            let quote_market_price = {
+                                let quote_asset_ctx = info
+                                    .asset_ctx(&pair.quote)
+                                    .await
+                                    .expect("Failed to fetch asset ctxs")
+                                    .expect(&format!(
+                                        "Failed to find quote asset:  {}",
+                                        pair.quote
+                                    ));
+
+                                quote_asset_ctx.mark_px.parse::<f64>().unwrap()
+                            };
+
+                            let current_ratio =
+                                format!("{:.2}", base_market_price / quote_market_price)
+                                    .parse::<f64>()
+                                    .unwrap();
+
+                            // check if tp or sl has been reached
+                            if let Some(tp) = tp {
+                                if current_ratio == tp {
+                                    println!("Take profit reached: {} == {}", current_ratio, tp);
+
+                                    let exit_short_order = OrderRequest {
+                                        asset: base_asset,
+                                        is_buy: true,
+                                        limit_px: format_limit_price(
+                                            base_market_price * (1.0 + slippage),
+                                        ),
+                                        sz: format_size(base_sz, base_sz_decimals),
+                                        reduce_only: true,
+                                        order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    };
+
+                                    let exit_long_order = OrderRequest {
+                                        asset: quote_asset,
+                                        is_buy: false,
+                                        limit_px: format_limit_price(
+                                            quote_market_price * (1.0 - slippage),
+                                        ),
+                                        sz: format_size(quote_sz, quote_sz_decimals),
+                                        reduce_only: true,
+                                        order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    };
+
+                                    break (exit_short_order, exit_long_order, current_ratio);
+                                }
+                            }
+
+                            if let Some(sl) = sl {
+                                if current_ratio == sl {
+                                    println!("Stop loss reached: {} == {}", current_ratio, sl);
+
+                                    let exit_short_order = OrderRequest {
+                                        asset: base_asset,
+                                        is_buy: true,
+                                        limit_px: format_limit_price(
+                                            base_market_price * (1.0 + slippage),
+                                        ),
+                                        sz: format_size(base_sz, base_sz_decimals),
+                                        reduce_only: true,
+                                        order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    };
+
+                                    let exit_long_order = OrderRequest {
+                                        asset: quote_asset,
+                                        is_buy: false,
+                                        limit_px: format_limit_price(
+                                            quote_market_price * (1.0 - slippage),
+                                        ),
+                                        sz: format_size(quote_sz, quote_sz_decimals),
+                                        reduce_only: true,
+                                        order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    };
+
+                                    break (exit_short_order, exit_long_order, current_ratio);
+                                }
+                            }
+
+                            println!(
+                                "Current Ratio: {}, Target Ratio Tp: {}, Target Ratio Sl: {}, Tp Diff: {}, Sl Diff: {}. Checking again in 5 seconds\n---",
+                                format!("{:.2}", current_ratio).parse::<f64>().unwrap(),
+                                format!("{:.2}", tp.unwrap_or(0.0)).parse::<f64>().unwrap(),
+                                format!("{:.2}", sl.unwrap_or(0.0)).parse::<f64>().unwrap(),
+                                format!("{:.2}", current_ratio - tp.unwrap_or(0.0)).parse::<f64>().unwrap(),
+                                format!("{:.2}", current_ratio - sl.unwrap_or(0.0)).parse::<f64>().unwrap(),
+                            );
+
+                            tokio::time::sleep(Duration::from_secs(5)).await;
+                        };
+
+                        // place exit orders
+                        println!("{}", "---".repeat(20));
+                        println!("Order 1 of 2");
+                        println!("Side: Buy");
+                        println!(
+                            "Size in {}: {}",
+                            pair.base,
+                            format_size(base_sz, base_sz_decimals)
+                        );
+                        println!("Ratio: {}\n", current_ratio);
+
+                        match exchange.place_order(exit_short_order).await {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(order) => {
+                                    order.data.statuses.iter().for_each(|status| match status {
+                                        OrderStatus::Filled(order) => {
+                                            println!(
+                                                "Order {} was successfully filled.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Resting(order) => {
+                                            println!(
+                                                "Order {} was successfully placed.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Error(msg) => {
+                                            println!("Order failed with error: {:#?}\n", msg)
+                                        }
+                                    });
+                                }
+                            },
+                            Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                        }
+
+                        println!("{}", "---".repeat(20));
+                        println!("Order 2 of 2");
+                        println!("Side: Sell");
+                        println!(
+                            "Size in {}: {}",
+                            pair.quote,
+                            format_size(quote_sz, quote_sz_decimals)
+                        );
+                        println!("Ratio: {}\n", current_ratio);
+
+                        match exchange.place_order(exit_long_order).await {
+                            Ok(order) => match order {
+                                ExchangeResponse::Err(err) => {
+                                    println!("{:#?}", err);
+                                    return;
+                                }
+                                ExchangeResponse::Ok(order) => {
+                                    order.data.statuses.iter().for_each(|status| match status {
+                                        OrderStatus::Filled(order) => {
+                                            println!(
+                                                "Order {} was successfully filled.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Resting(order) => {
+                                            println!(
+                                                "Order {} was successfully placed.\n",
+                                                order.oid
+                                            );
+                                        }
+                                        OrderStatus::Error(msg) => {
+                                            println!("Order failed with error: {:#?}\n", msg)
+                                        }
+                                    });
+                                }
+                            },
+                            Err(err) => {
+                                println!("{:#?}", err);
+                                return;
                             }
                         }
                     }
