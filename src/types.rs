@@ -63,6 +63,33 @@ impl TryFrom<&str> for TwapInterval {
     }
 }
 
+pub struct SzPerInterval {
+    pub size: f64,
+    pub interval: u32,
+}
+
+impl TryFrom<&str> for SzPerInterval {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value = value.trim();
+
+        let values = value.split("/").collect::<Vec<&str>>();
+
+        let size = values.get(0).ok_or("Invalid total order size")?;
+        let interval = values.get(1).ok_or("Invalid number of intervals")?;
+
+        let size = size
+            .parse::<f64>()
+            .map_err(|_| "Invalid total order size")?;
+        let interval = interval
+            .parse::<u32>()
+            .map_err(|_| "Invalid number of intervals")?;
+
+        Ok(Self { size, interval })
+    }
+}
+
 pub enum LimitPrice {
     Absolute(f64),
 }
