@@ -56,13 +56,13 @@ pub async fn cli(config: &Settings) {
         )
         .subcommand(
             App::new("sl")
-                .about("Handles Stop Loss command")
+                .about("Stop loss on an open order as market order")
                 .arg(
-                    Arg::with_name("percentage_order")
+                    Arg::with_name("size")
                         .required(true)
                         .index(1)
                         .takes_value(true)
-                        .help("% of order to SL")
+                        .help("% of order to sl")
                         .validator(validate_value_size)
                 )
                 .arg(
@@ -75,7 +75,7 @@ pub async fn cli(config: &Settings) {
                         )
                 )
                 .arg(
-                    Arg::with_name("sl_price")
+                    Arg::with_name("sl")
                         .required(true)
                         .index(3)
                         .takes_value(true)
@@ -578,44 +578,120 @@ pub async fn cli(config: &Settings) {
                 Err(err) => println!("{:#?}", err),
             }
         }
-        ("sl", Some(_sl_matches)) => {
-            // let percentage_order = sl_matches.value_of("percentage_order").unwrap();
-            // let percentage_order: f64 = percentage_order
-            //     .trim_end_matches("%")
-            //     .parse::<f64>()
-            //     .unwrap();
+        ("sl", Some(matches)) => {
+            let sz: OrderSize = matches
+                .value_of("size")
+                .unwrap()
+                .try_into()
+                .expect("Failed to parse order size");
 
-            // let asset = sl_matches.value_of("asset").unwrap();
-            // let asset: u32 = calculate_asset_to_id(&asset);
-            // let sl_price = sl_matches.value_of("sl_price").unwrap();
-            // let oid = 1234567;
-            // let sz: f64 = get_sz_from_oid(oid) * percentage_order / 100.0;
-            // let sz: String = sz.to_string();
-            // let reduce_only = false;
-            // let is_buy: bool = get_side_from_oid(oid);
-            // let limit_px = "1900";
+            let symbol = matches
+                .value_of("asset")
+                .unwrap_or(&config.default_asset.value);
 
-            // match sl_price {
-            //     sl_price
-            //         if sl_price.trim_start_matches("-").ends_with("%")
-            //             || sl_price.starts_with("-$")
-            //             || sl_price.trim_start_matches("-").ends_with("%pnl")
-            //             || sl_price.trim_start_matches("-").ends_with("pnl") =>
-            //     {
-            //         place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only, true).await;
-            //     }
-            //     sl_price if validate_value(sl_price.to_string()).is_ok() => {
-            //         place_sl_order(asset, is_buy, sl_price, limit_px, &sz, reduce_only, false)
-            //             .await;
-            //     }
-            //     _ => {
-            //         println!("No matching pattern");
-            //     }
-            // }
+            let sl: TpSl = matches
+                .value_of("sl")
+                .unwrap()
+                .try_into()
+                .expect("Failed to parse stop loss price");
 
-            //Handle Scale Buy  <total order size/number of intervals> <asset symbol> <lower price bracket> <upper price bracket>
+            let (sz, entry_price, is_buy) = match sz {
+                OrderSize::Percent(sz) => {
+                    let state = info
+                        .clearing_house_state()
+                        .await
+                        .expect("Failed to fetch balance");
+
+                    let order = state
+                    .asset_positions
+                    .iter()
+                    .find(|ap|{
+                        ap.position.coin.to_uppercase() == symbol.to_uppercase()
+                        && ap.position.entry_px.is_some()
+                    });
+
+                    let order = match  order {
+                        Some(order) => order,
+                        None => {
+                            println! ("{}", "-".repeat(35));
+                            println!("No open position found for {}", symbol);
+                            return;
+                        }
+
+                    };
+
+                    let (is_buy, order_size)= order.position.szi.split_at(1);
+
+                    let order_size = order_size.parse::<f64>().expect("Failed to parse order size");    
+                    let is_buy = !is_buy.starts_with("-");
+
+                    (
+                        order_size * (sz as f64 / 100.0),
+                        order
+                            .position
+                            .entry_px
+                            .as_ref()
+                            .expect("Failed to find entry price")
+                            .parse::<f64>()
+                            .expect("Failed to parse entry price"),
+                        is_buy,
+                    )
+
+
+                }
+
+                _=> {
+
+                    println!("{}", "-".repeat(35));
+
+                    println!("\nOnly % of order to tp is supported for now");
+                    return;
+                }
+            };
+
+            let trigger_price = match sl {
+                TpSl::Absolute(value) => entry_price + if is_buy {value} else {-value},
+                TpSl::Percent(value) => {
+                    entry_price * if is_buy {(100.0 + value as f64) / 100.0} else {(100.0 - value as f64) / 100.0}
+                }
+                TpSl::Fixed(value) => value,
+            };
+
+            let order_type = OrderType::Trigger(Trigger{
+                trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                is_market: true,
+                tpsl: TriggerType::Sl,
+            });
+
+            let (sz_decimals, asset) = *assets
+                .get(&symbol.to_uppercase())
+                .expect("Failed to find asset");
+            
+
+            let order = OrderRequest {
+                asset,
+                is_buy: is_buy,
+                limit_px: format_limit_price(trigger_price),
+                sz: format_size(sz, sz_decimals),
+                reduce_only: true,
+                order_type,
+
+            };
+
+            let res = exchange.place_order(order).await;
+            match res {
+                Ok(order) => match order {
+                    ExchangeResponse::Err(err) => println!("{:#?}", err),
+                    ExchangeResponse::Ok(_order) => {
+                        // println!("Order placed: {:#?}", order);
+                        println!("Stop loss order was successfully placed.\n")
+                    }
+                },
+                Err(err) => println!("{:#?}", err),
+            }
+
         }
-
+        
         ("buy", Some(matches)) => {
             let order_size: OrderSize = matches
                 .value_of("order_size")
