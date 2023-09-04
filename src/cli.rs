@@ -56,13 +56,13 @@ pub async fn cli(config: &Settings) {
         )
         .subcommand(
             App::new("sl")
-                .about("Handles Stop Loss command")
+                .about("Stop loss on an open order as market order")
                 .arg(
-                    Arg::with_name("percentage_order")
+                    Arg::with_name("size")
                         .required(true)
                         .index(1)
                         .takes_value(true)
-                        .help("% of order to SL")
+                        .help("% of order to sl")
                         .validator(validate_value_size)
                 )
                 .arg(
@@ -75,7 +75,7 @@ pub async fn cli(config: &Settings) {
                         )
                 )
                 .arg(
-                    Arg::with_name("sl_price")
+                    Arg::with_name("sl")
                         .required(true)
                         .index(3)
                         .takes_value(true)
@@ -580,7 +580,7 @@ pub async fn cli(config: &Settings) {
         }
         ("sl", Some(matches)) => {
             let sz: OrderSize = matches
-                .value_of("percentage_order")
+                .value_of("size")
                 .unwrap()
                 .try_into()
                 .expect("Failed to parse order size");
@@ -590,7 +590,7 @@ pub async fn cli(config: &Settings) {
                 .unwrap_or(&config.default_asset.value);
 
             let sl: TpSl = matches
-                .value_of("sl_price")
+                .value_of("sl")
                 .unwrap()
                 .try_into()
                 .expect("Failed to parse stop loss price");
