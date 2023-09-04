@@ -395,14 +395,14 @@ pub async fn cli(config: &Settings) {
                 )
                 .subcommand(
                     App::new("sell")
-                        .about("scale sell")
+                        .about("Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be bought at market")
                         .arg(
-                            Arg::with_name("total_order_size/interval")
+                            Arg::with_name("size_per_interval")
                                 .required(true)
                                 .index(1)
                                 .takes_value(true)
                                 .help(
-                                    "Forward slash separated total order size and number of intervals"
+                                    "total order size/number of intervals"
                                 )
                         )
                         .arg(
@@ -410,22 +410,22 @@ pub async fn cli(config: &Settings) {
                                 .required(true)
                                 .index(2)
                                 .takes_value(true)
-                                .help("asset symbol e.g ETH, SOL, BTC")
+                                .help("asset e.g ETH, SOL, BTC")
                         )
                         .arg(
-                            Arg::with_name("lower_price_bracket")
+                            Arg::with_name("lower")
                                 .required(true)
                                 .index(3)
                                 .takes_value(true)
-                                .help("Price to start selling from")
+                                .help("Lower price bracket")
                                 .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("upper_price_bracket")
+                            Arg::with_name("upper")
                                 .required(true)
                                 .index(4)
                                 .takes_value(true)
-                                .help("Price to stop selling at")
+                                .help("Upper price bracket")
                                 .validator(validate_value)
                         )
                 )
@@ -1185,39 +1185,92 @@ pub async fn cli(config: &Settings) {
                 }
             }
 
-            ("sell", Some(scale_sell_matches)) => {
-                let total_order_size: Vec<&str> = scale_sell_matches
-                    .value_of("total_order_size/interval")
+            ("sell", Some(matches)) => {
+                let sz_per_interval: SzPerInterval = matches
+                    .value_of("size_per_interval")
                     .unwrap()
-                    .split("/")
-                    .collect();
+                    .try_into()
+                    .expect("Failed to parse order size");
 
-                let asset = scale_sell_matches.value_of("asset").unwrap();
-                let lower_price_bracket =
-                    scale_sell_matches.value_of("lower_price_bracket").unwrap();
-                let upper_price_bracket =
-                    scale_sell_matches.value_of("upper_price_bracket").unwrap();
+                let symbol = matches.value_of("asset").expect("Asset is required");
+                let lower = matches
+                    .value_of("lower")
+                    .expect("Lower price bracket is required")
+                    .parse::<f64>()
+                    .expect("Failed to parse lower price bracket");
+                let upper = matches
+                    .value_of("upper")
+                    .expect("Upper price bracket is required")
+                    .parse::<f64>()
+                    .expect("Failed to parse upper price bracket");
+                //------------------------------------
 
-                let converted_total_order_size = total_order_size[0].parse::<f64>().unwrap()
-                    / total_order_size[1].parse::<f64>().unwrap();
+                let asset_ctx = info
+                    .asset_ctx(symbol)
+                    .await
+                    .expect("Failed to fetch asset ctxs")
+                    .expect("Failed to find asset");
+                let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
 
-                let interval = total_order_size[1].parse::<f64>().unwrap();
+                let(sz_decimals, asset) = *assets
+                    .get(&symbol.to_uppercase())
+                    .expect("Failed to find asset");
 
-                println!(
-                    "Sell {}{} each with limit orders at {}, {}, {}, {}, {},...,{}
-{}{} sold in total with {} limit orders",
-                    converted_total_order_size,
-                    asset,
-                    lower_price_bracket,
-                    lower_price_bracket.parse::<i32>().unwrap() + ((interval * 1.0) as i32),
-                    lower_price_bracket.parse::<i32>().unwrap() + ((interval * 2.0) as i32),
-                    lower_price_bracket.parse::<i32>().unwrap() + ((interval * 3.0) as i32),
-                    lower_price_bracket.parse::<i32>().unwrap() + ((interval * 4.0) as i32),
-                    upper_price_bracket,
-                    total_order_size[0].parse::<f64>().unwrap(),
-                    asset,
-                    total_order_size[1].parse::<f64>().unwrap()
-                );
+                let interval = (upper - lower) / (sz_per_interval.interval - 1) as f64;
+
+                let sz = (sz_per_interval.size / sz_per_interval.interval as f64) / market_price;
+
+                for i in 0..sz_per_interval.interval{
+                    let limit_price = lower + (interval * i as f64);
+
+                    println!("{}", "---".repeat(20));
+                    println!("Order {} of {}", i + 1, sz_per_interval.interval);
+                    println!("Side: Sell");
+                    println!("Size in {symbol}: {}", format_size(sz, sz_decimals));
+                    println!(
+                        "Size in USD: {}",
+                        format_size(sz * market_price, sz_decimals)
+                    );
+                    println!("Entry price: {}", format_limit_price(limit_price));
+                    println!("Market price: {}\n", market_price);
+
+                    let order = OrderRequest {
+                        asset,
+                        is_buy: false,
+                        limit_px: format_limit_price(limit_price),
+                        sz: format_size(sz, sz_decimals),
+                        reduce_only: false,
+                        order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
+                    };
+
+                    match exchange.place_order(order).await {
+                        Ok(order) => match order {
+                            ExchangeResponse::Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                            ExchangeResponse::Ok(order) => {
+                                order.data.statuses.iter().for_each(|status| match status {
+                                    OrderStatus::Filled(order) => {
+                                        println!("Order {} was successfully filled.\n", order.oid)
+                                    }
+                                    OrderStatus::Resting(order) => {
+                                        println!("Order {} was successfully placed.\n", order.oid)
+                                    }
+                                    OrderStatus::Error(msg) => {
+                                        println!("Order failed with error: {:#?}\n", msg)
+                                    }
+                                });
+                            }
+                        },
+                        Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        }
+                    }
+                }
+                
+       
             }
             _ => {
                 println!("No matching pattern");
