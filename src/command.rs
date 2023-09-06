@@ -1,14 +1,25 @@
 //using version 2.33 not the latest one
 use clap::{Arg, Command};
 
-use crate::hyperliquid::{Exchange, Info};
-use crate::settings::Settings;
-
 pub fn command() -> Command {
     Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about("A CLI bot to interact with the hyperliquid exchange")
+        .subcommand(
+            Command::new("set")
+                .about("Sets the default values for the bot in the exchange")
+                .subcommand(
+                    Command::new("dl")
+                        .about("Sets the default leverage")
+                        .arg(
+                            Arg::new("leverage")
+                                .index(1)
+                                .required(true)
+                                .help("Default leverage value")
+                        )
+                )
+            )
         .subcommand(
             Command::new("tp")
                 .about("Takes profit on open order as a market order")
@@ -351,69 +362,4 @@ pub fn command() -> Command {
                         )
                 )
         )
-}
-
-pub async fn order_checks(info: &Info, _exchange: &Exchange, config: &Settings, asset: &str) {
-    let state = info
-        .clearing_house_state()
-        .await
-        .expect("Failed to fetch clearing house state");
-
-    let asset_position = state
-        .asset_positions
-        .iter()
-        .find(|ap| ap.position.coin.to_uppercase() == asset.to_uppercase());
-
-    let _update_leverage = match asset_position {
-        Some(ap) => {
-            let leverage = &ap.position.leverage;
-
-            leverage.value != config.default_leverage.value() as u32
-        }
-        None => {
-            println!("No open position for {}", asset);
-            true
-        }
-    };
-
-    let _update_margin = match asset_position {
-        Some(ap) => {
-            let margin_type = &ap.position.leverage.type_;
-
-            margin_type.to_lowercase() != config.default_margin.value.to_string().to_lowercase()
-        }
-        None => {
-            println!("No open position for {}", asset);
-            true
-        }
-    };
-
-    todo!("Update leverage and margin");
-
-    // if update_leverage {
-    //     println!(
-    //         "Adjusting leverage for {} from {} to {}",
-    //         asset,
-    //         asset_position.unwrap().position.leverage.value,
-    //         config.default_leverage.value()
-    //     );
-    //     let res = exchange
-    //         .update_leverage(asset, is_cross, leverage)
-    //         .await
-    //         .expect("Failed to update leverage");
-    // }
-
-    // if update_margin {
-    //     println!(
-    //         "Adjusting margin type for {} from {} to {}",
-    //         asset,
-    //         asset_position.unwrap().position.leverage.type_,
-    //         config.default_margin.value
-    //     );
-    //     todo!("Update margin type");
-    // let res = exchange
-    //     .update_margin(asset, is_cross, margin)
-    //     .await
-    //     .expect("Failed to update margin");
-    // }
 }

@@ -51,7 +51,31 @@ impl Exchange {
         let nonce = self.timestamp();
         let orders = vec![order];
 
-        let connection_id = self.connection_id(&orders, nonce);
+        let connection_id = {
+            let hashable_tuples = orders
+                .iter()
+                .map(|order| {
+                    let order_type = order.get_type();
+
+                    (
+                        order.asset,
+                        order.is_buy,
+                        float_to_int_for_hashing(
+                            order.limit_px.parse().expect("Failed to parse limit_px"),
+                        ),
+                        float_to_int_for_hashing(order.sz.parse().expect("Failed to parse sz")),
+                        order.reduce_only,
+                        order_type.0,
+                        order_type.1,
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            let grouping: i32 = 0;
+            let vault_address = Address::zero();
+
+            keccak256((hashable_tuples, grouping, vault_address, nonce).encode()).into()
+        };
 
         let res = self
             .post(json!({
@@ -68,6 +92,36 @@ impl Exchange {
         Ok(res)
     }
 
+    pub async fn update_leverage(
+        &self,
+        leverage: u32,
+        asset: u32,
+        is_cross: bool,
+    ) -> Result<(), anyhow::Error> {
+        let nonce = self.timestamp();
+
+        let vault_address = Address::zero();
+        let connection_id =
+            keccak256((asset, is_cross, leverage, vault_address, nonce).encode()).into();
+
+        let res = self
+            .post::<serde_json::Value>(json!({
+                "action": {
+                    "type": "updateLeverage",
+                    "asset": asset,
+                    "isCross": is_cross,
+                    "leverage": leverage,
+                },
+                "nonce": nonce,
+                "signature": self.signature(connection_id).await,
+            }))
+            .await;
+
+        println!("{:?}", res);
+
+        Ok(())
+    }
+
     async fn post<T: for<'de> Deserialize<'de>>(
         &self,
         body: impl Serialize + Debug,
@@ -82,31 +136,6 @@ impl Exchange {
             .await?;
 
         Ok(res)
-    }
-    fn connection_id(&self, orders: &Vec<OrderRequest>, nonce: u128) -> H256 {
-        let hashable_tuples = orders
-            .iter()
-            .map(|order| {
-                let order_type = order.get_type();
-
-                (
-                    order.asset,
-                    order.is_buy,
-                    float_to_int_for_hashing(
-                        order.limit_px.parse().expect("Failed to parse limit_px"),
-                    ),
-                    float_to_int_for_hashing(order.sz.parse().expect("Failed to parse sz")),
-                    order.reduce_only,
-                    order_type.0,
-                    order_type.1,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let grouping: i32 = 0;
-        let vault_address = Address::zero();
-
-        keccak256((hashable_tuples, grouping, vault_address, nonce).encode()).into()
     }
 
     fn timestamp(&self) -> u128 {

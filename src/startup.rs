@@ -39,6 +39,41 @@ pub async fn startup(config: &Settings) {
         .collect::<HashMap<String, (u32, u32)>>();
 
     match command().get_matches().subcommand() {
+        Some(("set", matches)) => match matches.subcommand() {
+            Some(("dl", matches)) => {
+                let leverage = matches
+                    .get_one::<String>("leverage")
+                    .expect("Leverage is required")
+                    .parse::<u32>()
+                    .expect("Failed to parse leverage");
+
+                // ensure leverage is between 1 and 100
+                if !(1..=100).contains(&leverage) {
+                    println!("Leverage must be between 1 and 100");
+                    return;
+                }
+
+                // loop through all assets and update leverage
+                
+                for (symbol, v) in &assets{
+                    println!("Updating leverage for {} to {}%", symbol, leverage);
+                    let is_cross = if let  MarginType::Cross = config.default_margin.value {
+                        true
+                    } else {
+                        false
+                    };
+
+                let res = exchange.update_leverage(leverage, v.1 , is_cross).await;
+
+                println!("{:#?}", res);
+
+                }
+            }
+            _ => {
+                println!("Invalid command");
+                return;
+            }
+        }
         Some(("tp", matches)) => {
             let sz: OrderSize = matches
                 .get_one::<String>("size")

@@ -24,23 +24,6 @@ pub struct DefaultSizeConfig {
 }
 
 #[derive(Deserialize)]
-pub struct DefaultLeverageConfig {
-    value: u8,
-}
-
-impl DefaultLeverageConfig {
-    pub fn value(&self) -> u8 {
-        // ensure value is between 1 and 100
-        if self.value < 1 {
-            return 1;
-        } else if self.value > 100 {
-            return 100;
-        }
-        self.value
-    }
-}
-
-#[derive(Deserialize)]
 pub struct DefaultMarginConfig {
     pub value: MarginType,
 }
@@ -54,7 +37,6 @@ pub struct DefaultAssetConfig {
 pub struct Settings {
     pub account: AccountConfig,
     pub default_size: DefaultSizeConfig,
-    pub default_leverage: DefaultLeverageConfig,
     pub default_margin: DefaultMarginConfig,
     pub default_asset: DefaultAssetConfig,
 }
