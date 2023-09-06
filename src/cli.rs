@@ -291,7 +291,7 @@ pub async fn cli(config: &Settings) {
                         .arg(
                             Arg::with_name("price")
                                 .required(false)
-                                .index(3)
+                                .long("price")
                                 .takes_value(true)
                                 .help("Limit price if applicable")
                                 .validator(validate_limit_price)
@@ -333,8 +333,8 @@ pub async fn cli(config: &Settings) {
                         )
                         .arg(
                             Arg::with_name("price")
+                                .long("price")
                                 .required(false)
-                                .index(3)
                                 .takes_value(true)
                                 .help("Limit price if applicable")
                                 .validator(validate_limit_price)
@@ -1752,6 +1752,7 @@ pub async fn cli(config: &Settings) {
                     .try_into()
                     .expect("Failed to parse limit price");
 
+
                 let tp: Option<f64> = matches.value_of("tp").map(|price| {
                         price.parse::<f64>().expect(
                             "Invalid take profit value, expected a number or a percentage value e.g 10%",
@@ -1954,8 +1955,8 @@ pub async fn cli(config: &Settings) {
                                         .parse::<f64>()
                                         .unwrap();
 
-                                if current_ratio == target {
-                                    println!("Ratio reached: {}", current_ratio);
+                                if current_ratio >= target {
+                                    println!("Ratio reached: {} >= {}", current_ratio, target);
                                     let base_sz = base_sz / base_limit_price;
                                     let quote_sz = quote_sz / quote_market_price;
 
@@ -2134,8 +2135,8 @@ pub async fn cli(config: &Settings) {
 
                             // check if tp or sl has been reached
                             if let Some(tp) = tp {
-                                if current_ratio == tp {
-                                    println!("Take profit reached: {} == {}", current_ratio, tp);
+                                if current_ratio >= tp {
+                                    println!("Take profit reached: {} >= {}", current_ratio, tp);
 
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
@@ -2164,8 +2165,8 @@ pub async fn cli(config: &Settings) {
                             }
 
                             if let Some(sl) = sl {
-                                if current_ratio == sl {
-                                    println!("Stop loss reached: {} == {}", current_ratio, sl);
+                                if current_ratio <= sl {
+                                    println!("Stop loss reached: {} <= {}", current_ratio, sl);
 
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
@@ -2523,8 +2524,8 @@ pub async fn cli(config: &Settings) {
                                         .parse::<f64>()
                                         .unwrap();
 
-                                if current_ratio == target {
-                                    println!("Ratio reached: {}", current_ratio);
+                                if current_ratio <= target {
+                                    println!("Ratio reached: {} <= {}", current_ratio, target);
                                     let base_sz = base_sz / base_market_price;
                                     let quote_sz = quote_sz / quote_market_price;
 
@@ -2704,8 +2705,8 @@ pub async fn cli(config: &Settings) {
 
                             // check if tp or sl has been reached
                             if let Some(tp) = tp {
-                                if current_ratio == tp {
-                                    println!("Take profit reached: {} == {}", current_ratio, tp);
+                                if current_ratio <= tp {
+                                    println!("Take profit reached: {} <= {}", current_ratio, tp);
 
                                     let exit_short_order = OrderRequest {
                                         asset: base_asset,
@@ -2734,8 +2735,8 @@ pub async fn cli(config: &Settings) {
                             }
 
                             if let Some(sl) = sl {
-                                if current_ratio == sl {
-                                    println!("Stop loss reached: {} == {}", current_ratio, sl);
+                                if current_ratio >= sl {
+                                    println!("Stop loss reached: {} >= {}", current_ratio, sl);
 
                                     let exit_short_order = OrderRequest {
                                         asset: base_asset,
