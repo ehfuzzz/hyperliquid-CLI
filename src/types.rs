@@ -147,7 +147,11 @@ impl TryFrom<&str> for TpSl {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.trim();
-        let (size, unit) = value.split_at(value.len() - 1);
+        let (size, unit) = if value.ends_with("%") {
+            value.split_at(value.len() - 1)
+        } else {
+            (value, "")
+        };
 
         let size = size.parse::<f64>().map_err(|_| "Invalid size")?;
         match unit {

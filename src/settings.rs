@@ -16,12 +16,6 @@ pub enum SizeType {
     Notional,
 }
 
-// #[derive(Deserialize)]
-// pub enum SizeValue {
-//     Percent(String),
-//     Amount(String),
-// }
-
 #[derive(Deserialize)]
 pub struct DefaultSizeConfig {
     #[serde(rename = "type")]

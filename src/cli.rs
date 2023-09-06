@@ -92,7 +92,7 @@ pub async fn cli(config: &Settings) {
                     " The way we call it is: buy --size '$100' --asset eth --price @1900 --sl 1920 --tp 1865"
                 )
                 .arg(
-                    Arg::with_name("order_size")
+                    Arg::with_name("size")
                         .help("size of the order e.g ., $100 ")
                         .long("size")
                         .takes_value(true)
@@ -107,7 +107,7 @@ pub async fn cli(config: &Settings) {
                         .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("limit_price")
+                    Arg::with_name("price")
                         .help("Limit price e.g ., @1900")
                         .long("price")
                         .takes_value(true)
@@ -130,7 +130,7 @@ pub async fn cli(config: &Settings) {
                     " The way we call it is: sell --size '$100' --asset eth --price @1900 --sl 1920 --tp 1865"
                 )
                 .arg(
-                    Arg::with_name("order_size")
+                    Arg::with_name("size")
                         .help("size of the order e.g ., $100 ")
                         .long("size")
                         .takes_value(true)
@@ -145,20 +145,23 @@ pub async fn cli(config: &Settings) {
                         .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("limit_price")
+                    Arg::with_name("price")
                         .help("Limit price e.g ,. @1900")
                         .long("price")
                         .takes_value(true)
                         .validator(validate_limit_price)
                 )
                 .arg(
-                    Arg::with_name("take_profit")
+                    Arg::with_name("tp")
                         .help("Take profit value")
                         .long("tp")
                         .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("stop_loss").help("Stop Loss Value").long("sl").takes_value(true)
+                    Arg::with_name("sl")
+                        .help("Stop loss value")
+                        .long("sl")
+                        .takes_value(true)
                 )
         )
         .subcommand(
@@ -286,7 +289,7 @@ pub async fn cli(config: &Settings) {
                                 .help("Asset X/Asset Y e.g BTC/SOL")
                         )
                         .arg(
-                            Arg::with_name("limit_price")
+                            Arg::with_name("price")
                                 .required(false)
                                 .index(3)
                                 .takes_value(true)
@@ -329,7 +332,7 @@ pub async fn cli(config: &Settings) {
                                 .help("Asset X/Asset Y e.g BTC/SOL")
                         )
                         .arg(
-                            Arg::with_name("limit_price")
+                            Arg::with_name("price")
                                 .required(false)
                                 .index(3)
                                 .takes_value(true)
@@ -683,7 +686,7 @@ pub async fn cli(config: &Settings) {
 
         ("buy", Some(matches)) => {
             let order_size: OrderSize = matches
-                .value_of("order_size")
+                .value_of("size")
                 .unwrap_or(&config.default_size.value)
                 .try_into()
                 .expect("Failed to parse order size");
@@ -693,7 +696,7 @@ pub async fn cli(config: &Settings) {
                 .unwrap_or(&config.default_asset.value);
 
             let limit_price: LimitPrice = matches
-                .value_of("limit_price")
+                .value_of("price")
                 .unwrap_or("@0")
                 .try_into()
                 .expect("Failed to parse limit price");
@@ -720,7 +723,6 @@ pub async fn cli(config: &Settings) {
 
             let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
 
-            println!("Market price: {}", market_price);
 
             let slippage = 3.0 / 100.0;
 
@@ -763,9 +765,7 @@ pub async fn cli(config: &Settings) {
             // convert $sz to base asset
             let sz = sz / market_price;
 
-            println!("{}", "---".repeat(20));
             // FIXME: update_leverage(&exchange, &config).await;
-            println!("{}", "---".repeat(20));
 
             let order = OrderRequest {
                 asset,
@@ -781,24 +781,44 @@ pub async fn cli(config: &Settings) {
                 _ => limit_price,
             };
 
+        
+            println!("{}", "---".repeat(20));
+            println!("Side: Buy");
             println!(
-                "\nPlacing a buy order for {symbol} at {}",
-                format_limit_price(limit_price)
+                "Size in {}: {}",
+                symbol,
+                order.sz
             );
+            println!(
+                "Size in USD: {}",
+                format_size(sz * market_price, sz_decimals)
+            );
+            println!("Market price: {}\n", market_price);
 
-            let res = exchange.place_order(order).await;
-
-            match res {
-                Ok(order) => match order {
-                    ExchangeResponse::Err(err) => {
-                        println!("{:#?}", err);
-                        return;
+            match exchange.place_order(order).await {
+                Ok(order) => {
+                    match order {
+                        ExchangeResponse::Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        }
+                        ExchangeResponse::Ok(order) => {
+                            order.data.statuses.iter().for_each(|status| match status {
+                            OrderStatus::Filled(order) => {
+                                println!("Order {} was successfully filled.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Resting(order) => {
+                                println!("Order {} was successfully placed.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Error(msg) => {
+                                println!("Order failed with error: {:#?}\n", msg)
+                            }
+                        });
+                        }
                     }
-                    ExchangeResponse::Ok(_order) => {
-                        // println!("Order placed: {:#?}", order);
-                        println!("Buy order was successfully placed.\n")
-                    }
-                },
+                }
                 Err(err) => {
                     println!("{:#?}", err);
                     return;
@@ -807,6 +827,7 @@ pub async fn cli(config: &Settings) {
 
             // tp
             if tp.is_some() {
+
                 let trigger_price = match tp {
                     Some(TpSl::Absolute(value)) => limit_price + value,
                     Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
@@ -814,6 +835,7 @@ pub async fn cli(config: &Settings) {
 
                     None => unreachable!("Expected a take profit value"),
                 };
+
 
                 let order_type = OrderType::Trigger(Trigger {
                     trigger_px: format_limit_price(trigger_price).parse().unwrap(),
@@ -830,20 +852,48 @@ pub async fn cli(config: &Settings) {
                     order_type,
                 };
 
+                println!("{}", "---".repeat(20));
+                println!("Side: Close Long");
                 println!(
-                    "Placing a take profit order for {symbol} at {}",
-                    order.limit_px
+                    "Size in {}: {}",
+                    symbol,
+                    order.sz
                 );
-                let res = exchange.place_order(order).await;
-                match res {
-                    Ok(order) => match order {
-                        ExchangeResponse::Err(err) => println!("{:#?}", err),
-                        ExchangeResponse::Ok(_order) => {
-                            // println!("Order placed: {:#?}", order);
-                            println!("Take profit order was successfully placed.\n")
+                println!(
+                    "Size in USD: {}",
+                    format_size(sz * market_price, sz_decimals)
+                );
+                println!("Entry price: {}", order.limit_px);
+                println!("Market price: {}\n", market_price);
+    
+                match exchange.place_order(order).await {
+                    Ok(order) => {
+                        match order {
+                            ExchangeResponse::Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                            ExchangeResponse::Ok(order) => {
+                                order.data.statuses.iter().for_each(|status| match status {
+                                OrderStatus::Filled(order) => {
+                                    println!("Take profit order {} was successfully filled.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Resting(order) => {
+                                    println!("Take profit order {} was successfully placed.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Error(msg) => {
+                                    println!("Take profit order failed with error: {:#?}\n", msg)
+                                }
+                            });
+                            }
                         }
-                    },
-                    Err(err) => println!("{:#?}", err),
+                    }
+                    Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
                 }
             }
 
@@ -872,27 +922,56 @@ pub async fn cli(config: &Settings) {
                     order_type,
                 };
 
+                println!("{}", "---".repeat(20));
+                println!("Side: Close Long");
                 println!(
-                    "Placing a stop loss order for {symbol} at {}",
-                    order.limit_px
+                    "Size in {}: {}",
+                    symbol,
+                    order.sz
                 );
-                let res = exchange.place_order(order).await;
-                match res {
-                    Ok(order) => match order {
-                        ExchangeResponse::Err(err) => println!("{:#?}", err),
-                        ExchangeResponse::Ok(_order) => {
-                            // println!("Order placed: {:#?}", order);
-                            println!("Stop loss order was successfully placed.\n")
+                println!(
+                    "Size in USD: {}",
+                    format_size(sz * market_price, sz_decimals)
+                );
+                println!("Entry price: {}", order.limit_px);
+                println!("Market price: {}\n", market_price);
+
+                match exchange.place_order(order).await {
+                    Ok(order) => {
+                        match order {
+                            ExchangeResponse::Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                            ExchangeResponse::Ok(order) => {
+                                order.data.statuses.iter().for_each(|status| match status {
+                                OrderStatus::Filled(order) => {
+                                    println!("Stop loss order {} was successfully filled.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Resting(order) => {
+                                    println!("Stop loss order {} was successfully placed.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Error(msg) => {
+                                    println!("Stop loss order failed with error: {:#?}\n", msg)
+                                }
+                            });
+                            }
                         }
-                    },
-                    Err(err) => println!("{:#?}", err),
+                    }
+                    Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
                 }
+
             }
         }
 
         ("sell", Some(matches)) => {
             let order_size: OrderSize = matches
-                .value_of("order_size")
+                .value_of("size")
                 .unwrap_or(&config.default_size.value)
                 .try_into()
                 .expect("Failed to parse order size");
@@ -902,7 +981,7 @@ pub async fn cli(config: &Settings) {
                 .unwrap_or(&config.default_asset.value);
 
             let limit_price: LimitPrice = matches
-                .value_of("limit_price")
+                .value_of("price")
                 .unwrap_or("@0")
                 .try_into()
                 .expect("Failed to parse limit price");
@@ -918,6 +997,7 @@ pub async fn cli(config: &Settings) {
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                 )
             });
+
 
             // ----------------------------------------------
             let asset_ctx = info
@@ -970,9 +1050,7 @@ pub async fn cli(config: &Settings) {
             // convert $sz to base asset
             let sz = sz / market_price;
 
-            println!("{}", "---".repeat(20));
             // Update leverage
-            println!("{}", "---".repeat(20));
 
             let order = OrderRequest {
                 asset,
@@ -988,28 +1066,50 @@ pub async fn cli(config: &Settings) {
                 _ => limit_price,
             };
 
+            println!("{}", "---".repeat(20));
+            println!("Side: Sell");
             println!(
-                "\nPlacing a sell order for {symbol} at {}",
-                format_limit_price(limit_price)
+                "Size in {}: {}",
+                symbol,
+                order.sz
             );
+            println!(
+                "Size in USD: {}",
+                format_size(sz * market_price, sz_decimals)
+            );
+            println!("Market price: {}\n", market_price);
 
-            let res = exchange.place_order(order).await;
-            match res {
-                Ok(order) => match order {
-                    ExchangeResponse::Err(err) => {
-                        println!("{:#?}", err);
-                        return;
+            match exchange.place_order(order).await {
+                Ok(order) => {
+                    match order {
+                        ExchangeResponse::Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        }
+                        ExchangeResponse::Ok(order) => {
+                            order.data.statuses.iter().for_each(|status| match status {
+                            OrderStatus::Filled(order) => {
+                                println!("Order {} was successfully filled.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Resting(order) => {
+                                println!("Order {} was successfully placed.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Error(msg) => {
+                                println!("Order failed with error: {:#?}\n", msg)
+                            }
+                        });
+                        }
                     }
-                    ExchangeResponse::Ok(_order) => {
-                        // println!("Order placed: {:#?}", order);
-                        println!("Sell order was successfully placed.\n")
-                    }
-                },
+                }
                 Err(err) => {
                     println!("{:#?}", err);
                     return;
                 }
             }
+
+
 
             if tp.is_some() {
                 let trigger_price = match tp {
@@ -1035,21 +1135,50 @@ pub async fn cli(config: &Settings) {
                     order_type,
                 };
 
+                println!("{}", "---".repeat(20));
+                println!("Side: Close Short");
                 println!(
-                    "Placing a take profit order for {symbol} at {}",
-                    order.limit_px
+                    "Size in {}: {}",
+                    symbol,
+                    order.sz
                 );
-                let res = exchange.place_order(order).await;
-                match res {
-                    Ok(order) => match order {
-                        ExchangeResponse::Err(err) => println!("{:#?}", err),
-                        ExchangeResponse::Ok(_order) => {
-                            // println!("Order placed: {:#?}", order);
-                            println!("Take profit order was successfully placed.\n")
+                println!(
+                    "Size in USD: {}",
+                    format_size(sz * market_price, sz_decimals)
+                );
+                println!("Entry price: {}", order.limit_px);
+                println!("Market price: {}\n", market_price);
+
+                match exchange.place_order(order).await {
+                    Ok(order) => {
+                        match order {
+                            ExchangeResponse::Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                            ExchangeResponse::Ok(order) => {
+                                order.data.statuses.iter().for_each(|status| match status {
+                                OrderStatus::Filled(order) => {
+                                    println!("Take profit order {} was successfully filled.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Resting(order) => {
+                                    println!("Take profit order {} was successfully placed.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Error(msg) => {
+                                    println!("Take profit order failed with error: {:#?}\n", msg)
+                                }
+                            });
+                            }
                         }
-                    },
-                    Err(err) => println!("{:#?}", err),
+                    }
+                    Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
                 }
+                
             }
 
             if sl.is_some() {
@@ -1076,21 +1205,49 @@ pub async fn cli(config: &Settings) {
                     order_type,
                 };
 
+                println!("{}", "---".repeat(20));
+                println!("Side: Close Short");
                 println!(
-                    "Placing a stop loss order for {symbol} at {}",
-                    order.limit_px
+                    "Size in {}: {}",
+                    symbol,
+                    order.sz
                 );
-                let res = exchange.place_order(order).await;
-                match res {
-                    Ok(order) => match order {
-                        ExchangeResponse::Err(err) => println!("{:#?}", err),
-                        ExchangeResponse::Ok(_order) => {
-                            // println!("Order placed: {:#?}", order);
-                            println!("Stop loss order was successfully placed.\n")
+                println!(
+                    "Size in USD: {}",
+                    format_size(sz * market_price, sz_decimals)
+                );
+                println!("Entry price: {}", order.limit_px);
+                println!("Market price: {}\n", market_price);
+
+                match exchange.place_order(order).await {
+                    Ok(order) => {
+                        match order {
+                            ExchangeResponse::Err(err) => {
+                                println!("{:#?}", err);
+                                return;
+                            }
+                            ExchangeResponse::Ok(order) => {
+                                order.data.statuses.iter().for_each(|status| match status {
+                                OrderStatus::Filled(order) => {
+                                    println!("Stop loss order {} was successfully filled.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Resting(order) => {
+                                    println!("Stop loss order {} was successfully placed.\n", order.oid);
+                                    
+                                }
+                                OrderStatus::Error(msg) => {
+                                    println!("Stop loss order failed with error: {:#?}\n", msg)
+                                }
+                            });
+                            }
                         }
-                    },
-                    Err(err) => println!("{:#?}", err),
-                }
+                    }
+                    Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
+                }   
             }
         }
 
@@ -1590,7 +1747,7 @@ pub async fn cli(config: &Settings) {
                     .expect("Failed to parse pair");
 
                 let limit_price: LimitPrice = matches
-                    .value_of("limit_price")
+                    .value_of("price")
                     .unwrap_or("@0")
                     .try_into()
                     .expect("Failed to parse limit price");
@@ -2158,7 +2315,7 @@ pub async fn cli(config: &Settings) {
                     .expect("Failed to parse pair");
 
                 let limit_price: LimitPrice = matches
-                    .value_of("limit_price")
+                    .value_of("price")
                     .unwrap_or("@0")
                     .try_into()
                     .expect("Failed to parse limit price");
