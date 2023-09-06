@@ -1,212 +1,174 @@
 //using version 2.33 not the latest one
-use clap::{App, Arg};
+use clap::{Arg, Command};
 
-use crate::helpers::{
-    validate_limit_price, validate_sl_price, validate_tp_price, validate_value, validate_value_size,
-};
 use crate::hyperliquid::{Exchange, Info};
 use crate::settings::Settings;
 
-pub fn command() -> App<'static, 'static> {
-    App::new(env!("CARGO_PKG_NAME"))
+pub fn command() -> Command {
+    Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about("A CLI bot to interact with the hyperliquid exchange")
         .subcommand(
-            App::new("tp")
+            Command::new("tp")
                 .about("Takes profit on open order as a market order")
                 .arg(
-                    Arg::with_name("size")
+                    Arg::new("size")
                         .required(true)
                         .index(1)
-                        .takes_value(true)
                         .help("% of order to tp")
-                        .validator(validate_value_size)
                 )
                 .arg(
-                    Arg::with_name("asset")
+                    Arg::new("asset")
                         .required(true)
                         .index(2)
-                        .takes_value(true)
                         .help(
                             "Asset symbol e.g ETH, SOL, BTC ... optional if default asset is provided"
                         )
                 )
                 .arg(
-                    Arg::with_name("tp")
+                    Arg::new("tp")
                         .required(true)
                         .index(3)
-                        .takes_value(true)
                         .help(
                             "Take profit price or %/$ gain in asset before tp or %$ gain in pnl before tp"
                         )
-                        .validator(validate_tp_price)
                 )
         )
         .subcommand(
-            App::new("sl")
+            Command::new("sl")
                 .about("Stop loss on an open order as market order")
                 .arg(
-                    Arg::with_name("size")
+                    Arg::new("size")
                         .required(true)
                         .index(1)
-                        .takes_value(true)
                         .help("% of order to sl")
-                        .validator(validate_value_size)
                 )
                 .arg(
-                    Arg::with_name("asset")
+                    Arg::new("asset")
                         .required(true)
                         .index(2)
-                        .takes_value(true)
                         .help(
                             "asset symbol e.g ETH, SOL, BTC .., optional if default asset is provided"
                         )
                 )
                 .arg(
-                    Arg::with_name("sl")
+                    Arg::new("sl")
                         .required(true)
                         .index(3)
-                        .takes_value(true)
                         .help(
                             "Stop loss price or %/$ loss in asset before sl or %$ loss in pnl before sl"
                         )
-                        .validator(validate_sl_price)
                 )
         )
         .subcommand(
-            App::new("buy")
-                .about("Handles the Buy command")
-                .help(
-                    " The way we call it is: buy --size '$100' --asset eth --price @1900 --sl 1920 --tp 1865"
-                )
+            Command::new("buy")
+                .about("Buys an asset at market or limit price")
                 .arg(
-                    Arg::with_name("size")
-                        .help("size of the order e.g ., $100 ")
+                    Arg::new("size")
+                        .help("size of the order e.g, $100 ")
                         .long("size")
-                        .takes_value(true)
-                        .validator(validate_value_size)
                 )
                 .arg(
-                    Arg::with_name("asset")
+                    Arg::new("asset")
                         .help(
                             "Asset symbol e.g ETH, SOL, BTC, optional if default asset is defined"
                         )
                         .long("asset")
-                        .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("price")
+                    Arg::new("price")
                         .help("Limit price e.g ., @1900")
                         .long("price")
-                        .takes_value(true)
-                        .validator(validate_limit_price)
                 )
                 .arg(
-                    Arg::with_name("tp")
+                    Arg::new("tp")
                         .help("Take profit value")
                         .long("tp")
-                        .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("sl").help("Stop loss value").long("sl").takes_value(true)
+                    Arg::new("sl")
+                        .help("Stop loss value")
+                        .long("sl")
                 )
         )
         .subcommand(
-            App::new("sell")
-                .about(" Handles the Sell command")
-                .help(
-                    " The way we call it is: sell --size '$100' --asset eth --price @1900 --sl 1920 --tp 1865"
-                )
+            Command::new("sell")
+                .about("Sells an asset at market or limit price")
                 .arg(
-                    Arg::with_name("size")
+                    Arg::new("size")
                         .help("size of the order e.g ., $100 ")
                         .long("size")
-                        .takes_value(true)
-                        .validator(validate_value_size)
                 )
                 .arg(
-                    Arg::with_name("asset")
+                    Arg::new("asset")
                         .help(
                             "Asset symbol e.g ETH, SOL, BTC, optional if default asset is defined"
                         )
                         .long("asset")
-                        .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("price")
+                    Arg::new("price")
                         .help("Limit price e.g ,. @1900")
                         .long("price")
-                        .takes_value(true)
-                        .validator(validate_limit_price)
                 )
                 .arg(
-                    Arg::with_name("tp")
+                    Arg::new("tp")
                         .help("Take profit value")
                         .long("tp")
-                        .takes_value(true)
                 )
                 .arg(
-                    Arg::with_name("sl")
+                    Arg::new("sl")
                         .help("Stop loss value")
                         .long("sl")
-                        .takes_value(true)
                 )
         )
         .subcommand(
-            App::new("twap")
+            Command::new("twap")
                 .about("Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be bought at market")
                 .subcommand(
-                    App::new("buy")
+                    Command::new("buy")
                         .about("twap buy")
                         .arg(
-                            Arg::with_name("size")
+                            Arg::new("size")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("Total order size")
-                                .validator(validate_value_size)
                         )
                         .arg(
-                            Arg::with_name("asset")
+                            Arg::new("asset")
                                 .required(true)
                                 .index(2)
-                                .takes_value(true)
                                 .help("asset to be traded")
                         )
                         .arg(
-                            Arg::with_name("interval")
+                            Arg::new("interval")
                                 .required(true)
                                 .index(3)
-                                .takes_value(true)
                                 .help(
                                     "Time between intervals in minutes, number of intervals e.g 5,10"
                                 )
                         )
                 )
                 .subcommand(
-                    App::new("sell")
+                    Command::new("sell")
                         .about("twap sell")
                         .arg(
-                            Arg::with_name("size")
+                            Arg::new("size")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("Total order size")
-                                .validator(validate_value_size)
                         )
                         .arg(
-                            Arg::with_name("asset")
+                            Arg::new("asset")
                                 .required(true)
                                 .index(2)
-                                .takes_value(true)
                                 .help("asset to be traded")
                         )
                         .arg(
-                            Arg::with_name("interval")
+                            Arg::new("interval")
                                 .required(true)
                                 .index(3)
-                                .takes_value(true)
                                 .help(
                                     "Time between intervals in minutes, number of intervals e.g 5,10"
                                 )
@@ -214,211 +176,178 @@ pub fn command() -> App<'static, 'static> {
                 )
         )
         .subcommand(
-            App::new("view")
+            Command::new("view")
                 .about("Handles the view commands")
                 .subcommand(
-                    App::new("pnl").about("view pnl").help("Use to display the account's PNL")
+                    Command::new("upnl").about("view unrealized pnl")
                 )
                 .subcommand(
-                    App::new("wallet")
+                    Command::new("wallet")
                         .about("view wallet balance")
                         .arg(
-                            Arg::with_name("balance")
+                            Arg::new("balance")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("argument to complete the view wallet balance command")
-                                .possible_values(&["balance"])
+                            
                         )
                 )
                 .subcommand(
-                    App::new("unfilled")
+                    Command::new("unfilled")
                         .about("view unfilled orders")
                         .arg(
-                            Arg::with_name("orders")
+                            Arg::new("orders")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("argument to complete the view unfilled orders command")
-                                .possible_values(&["orders"])
+                            
                         )
                 )
                 .subcommand(
-                    App::new("open")
+                    Command::new("open")
                         .about("view open positions")
                         .arg(
-                            Arg::with_name("positions")
+                            Arg::new("positions")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("argument to complete the view open positions command")
-                                .possible_values(&["positions"])
+                            
                         )
                 )
         )
         .subcommand(
-            App::new("pair")
+            Command::new("pair")
                 .about("Takes 50% of order size and longs Asset X and takes another 50% of order size and shorts Asset Y.")
                 .subcommand(
-                    App::new("buy")
+                    Command::new("buy")
                         .about("pair to buy")
                         .arg(
-                            Arg::with_name("size")
+                            Arg::new("size")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("Order Size")
-                                .validator(validate_value_size)
                         )
                         .arg(
-                            Arg::with_name("pair")
+                            Arg::new("pair")
                                 .required(true)
                                 .index(2)
-                                .takes_value(true)
                                 .help("Asset X/Asset Y e.g BTC/SOL")
                         )
                         .arg(
-                            Arg::with_name("price")
+                            Arg::new("price")
                                 .required(false)
                                 .long("price")
-                                .takes_value(true)
-                                .help("Limit price if applicable")
-                                .validator(validate_limit_price)
+                                .help("Limit price if Commandlicable")
                         )
                         .arg(
-                            Arg::with_name("sl")
+                            Arg::new("sl")
                                 .required(false)
                                 .long("sl")
-                                .takes_value(true)
                                 .help("Stop loss")
-                                .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("tp")
+                            Arg::new("tp")
                                 .required(false)
                                 .long("tp")
-                                .takes_value(true)
                                 .help("Take profit")
-                                .validator(validate_value)
                         )
                 )
                 .subcommand(
-                    App::new("sell")
+                    Command::new("sell")
                         .about("pair to sell")
                         .arg(
-                            Arg::with_name("size")
+                            Arg::new("size")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help("Order Size")
-                                .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("pair")
+                            Arg::new("pair")
                                 .required(true)
                                 .index(2)
-                                .takes_value(true)
                                 .help("Asset X/Asset Y e.g BTC/SOL")
                         )
                         .arg(
-                            Arg::with_name("price")
+                            Arg::new("price")
                                 .long("price")
                                 .required(false)
-                                .takes_value(true)
-                                .help("Limit price if applicable")
-                                .validator(validate_limit_price)
+                                .help("Limit price if Commandlicable")
                         )
                         .arg(
-                            Arg::with_name("sl")
+                            Arg::new("sl")
                                 .required(false)
                                 .long("sl")
-                                .takes_value(true)
                                 .help("stop loss")
-                                .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("tp")
+                            Arg::new("tp")
                                 .required(false)
                                 .long("tp")
-                                .takes_value(true)
                                 .help("Take profit")
-                                .validator(validate_value)
                         )
                 )
         )
         .subcommand(
-            App::new("scale")
+            Command::new("scale")
                 .about("Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be bought at market")
                 .subcommand(
-                    App::new("buy")
+                    Command::new("buy")
                         .about("scale buy")
                         .arg(
-                            Arg::with_name("size_per_interval")
+                            Arg::new("size_per_interval")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help(
                                     "total order size/number of intervals"
                                 )
                         )
                         .arg(
-                            Arg::with_name("asset")
+                            Arg::new("asset")
                                 .required(true)
                                 .index(2)
-                                .takes_value(true)
                                 .help("asset e.g ETH, SOL, BTC")
                         )
                         .arg(
-                            Arg::with_name("lower")
+                            Arg::new("lower")
                                 .required(true)
                                 .index(3)
-                                .takes_value(true)
                                 .help("lower price bracket")
-                                .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("upper")
+                            Arg::new("upper")
                                 .required(true)
                                 .index(4)
-                                .takes_value(true)
                                 .help("upper price bracket")
-                                .validator(validate_value)
                         )
                 )
                 .subcommand(
-                    App::new("sell")
+                    Command::new("sell")
                         .about("Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be bought at market")
                         .arg(
-                            Arg::with_name("size_per_interval")
+                            Arg::new("size_per_interval")
                                 .required(true)
                                 .index(1)
-                                .takes_value(true)
                                 .help(
                                     "total order size/number of intervals"
                                 )
                         )
                         .arg(
-                            Arg::with_name("asset")
+                            Arg::new("asset")
                                 .required(true)
                                 .index(2)
-                                .takes_value(true)
                                 .help("asset e.g ETH, SOL, BTC")
                         )
                         .arg(
-                            Arg::with_name("lower")
+                            Arg::new("lower")
                                 .required(true)
                                 .index(3)
-                                .takes_value(true)
                                 .help("Lower price bracket")
-                                .validator(validate_value)
                         )
                         .arg(
-                            Arg::with_name("upper")
+                            Arg::new("upper")
                                 .required(true)
                                 .index(4)
-                                .takes_value(true)
                                 .help("Upper price bracket")
-                                .validator(validate_value)
                         )
                 )
         )

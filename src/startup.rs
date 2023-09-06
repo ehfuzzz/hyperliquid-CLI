@@ -40,20 +40,22 @@ pub async fn startup(config: &Settings) {
         .collect::<HashMap<String, (u32, u32)>>();
 
     match command().get_matches().subcommand() {
-        ("tp", Some(matches)) => {
+        Some(("tp", matches)) => {
             let sz: OrderSize = matches
-                .value_of("size")
-                .unwrap()
+                .get_one::<String>("size")
+                .expect("Order size is required")
+                .as_str()
                 .try_into()
                 .expect("Failed to parse order size");
 
             let symbol = matches
-                .value_of("asset")
+                .get_one::<String>("asset")
                 .unwrap_or(&config.default_asset.value);
 
             let tp: TpSl = matches
-                .value_of("tp")
+                .get_one::<String>("tp")
                 .expect("Tp price is required")
+                .as_str()
                 .try_into()
                 .expect("Invalid tp price, valid values e.g 10% | +10 | 1900");
 
@@ -156,20 +158,22 @@ pub async fn startup(config: &Settings) {
                 Err(err) => println!("{:#?}", err),
             }
         }
-        ("sl", Some(matches)) => {
+        Some(("sl", matches)) => {
             let sz: OrderSize = matches
-                .value_of("size")
-                .unwrap()
+                .get_one::<String>("size")
+                .expect("Order size is required")
+                .as_str()
                 .try_into()
                 .expect("Failed to parse order size");
 
             let symbol = matches
-                .value_of("asset")
+                .get_one::<String>("asset")
                 .unwrap_or(&config.default_asset.value);
 
             let sl: TpSl = matches
-                .value_of("sl")
-                .unwrap()
+                .get_one::<String>("sl")
+                .expect("Sl price is required")
+                .as_str()
                 .try_into()
                 .expect("Failed to parse stop loss price");
 
@@ -267,31 +271,33 @@ pub async fn startup(config: &Settings) {
             }
         }
 
-        ("buy", Some(matches)) => {
+        Some(("buy", matches)) => {
             let order_size: OrderSize = matches
-                .value_of("size")
+                .get_one::<String>("size")
                 .unwrap_or(&config.default_size.value)
+                .as_str()
                 .try_into()
                 .expect("Failed to parse order size");
 
             let symbol = matches
-                .value_of("asset")
+                .get_one::<String>("asset")
                 .unwrap_or(&config.default_asset.value);
 
             let limit_price: LimitPrice = matches
-                .value_of("price")
-                .unwrap_or("@0")
+                .get_one::<String>("price")
+                .unwrap_or(&"@0".to_string())
+                .as_str()
                 .try_into()
                 .expect("Failed to parse limit price");
 
-            let tp: Option<TpSl> = matches.value_of("tp").map(|price| {
-                price.try_into().expect(
+            let tp: Option<TpSl> = matches.get_one::<String>("tp").map(|price| {
+                price.as_str().try_into().expect(
                     "Invalid take profit value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let sl: Option<TpSl> = matches.value_of("sl").map(|price| {
-                price.try_into().expect(
+            let sl: Option<TpSl> = matches.get_one::<String>("sl").map(|price| {
+                price.as_str().try_into().expect(
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                 )
             });
@@ -552,31 +558,33 @@ pub async fn startup(config: &Settings) {
             }
         }
 
-        ("sell", Some(matches)) => {
+        Some(("sell", matches)) => {
             let order_size: OrderSize = matches
-                .value_of("size")
+                .get_one::<String>("size")
                 .unwrap_or(&config.default_size.value)
+                .as_str()
                 .try_into()
                 .expect("Failed to parse order size");
 
             let symbol = matches
-                .value_of("asset")
+                .get_one::<String>("asset")
                 .unwrap_or(&config.default_asset.value);
 
             let limit_price: LimitPrice = matches
-                .value_of("price")
-                .unwrap_or("@0")
+                .get_one::<String>("price")
+                .unwrap_or(&"@0".to_string())
+                .as_str()
                 .try_into()
                 .expect("Failed to parse limit price");
 
-            let tp: Option<TpSl> = matches.value_of("tp").map(|price| {
-                price.try_into().expect(
+            let tp: Option<TpSl> = matches.get_one::<String>("tp").map(|price| {
+                price.as_str().try_into().expect(
                     "Invalid take profit value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let sl: Option<TpSl> = matches.value_of("sl").map(|price| {
-                price.try_into().expect(
+            let sl: Option<TpSl> = matches.get_one::<String>("sl").map(|price| {
+                price.as_str().try_into().expect(
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                 )
             });
@@ -834,24 +842,25 @@ pub async fn startup(config: &Settings) {
             }
         }
 
-        ("scale", Some(matches)) => match matches.subcommand() {
-            ("buy", Some(matches)) => {
+        Some(("scale", matches)) => match matches.subcommand() {
+            Some(("buy", matches)) => {
                 let sz_per_interval: SzPerInterval = matches
-                    .value_of("size_per_interval")
-                    .unwrap()
+                    .get_one::<String>("size_per_interval")
+                    .expect("Order size is required")
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse order size");
 
-                let symbol = matches.value_of("asset").expect("Asset is required");
+                let symbol = matches.get_one::<String>("asset").expect("Asset is required");
 
                 let lower = matches
-                    .value_of("lower")
+                    .get_one::<String>("lower")
                     .expect("Lower price bracket is required")
                     .parse::<f64>()
                     .expect("Failed to parse lower price bracket");
 
                 let upper = matches
-                    .value_of("upper")
+                    .get_one::<String>("upper")
                     .expect("Upper price bracket is required")
                     .parse::<f64>()
                     .expect("Failed to parse upper price bracket");
@@ -925,22 +934,25 @@ pub async fn startup(config: &Settings) {
                 }
             }
 
-            ("sell", Some(matches)) => {
+            Some(("sell", matches)) => {
                 let sz_per_interval: SzPerInterval = matches
-                    .value_of("size_per_interval")
-                    .unwrap()
+                    .get_one::<String>("size_per_interval")
+                    .expect("Order size is required")
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse order size");
 
-                let symbol = matches.value_of("asset").expect("Asset is required");
+                let symbol = matches.get_one::<String>("asset").expect("Asset is required");
                 let lower = matches
-                    .value_of("lower")
+                    .get_one::<String>("lower")
                     .expect("Lower price bracket is required")
+                    .as_str()
                     .parse::<f64>()
                     .expect("Failed to parse lower price bracket");
                 let upper = matches
-                    .value_of("upper")
+                    .get_one::<String>("upper")
                     .expect("Upper price bracket is required")
+                    .as_str()
                     .parse::<f64>()
                     .expect("Failed to parse upper price bracket");
                 //------------------------------------
@@ -1014,21 +1026,21 @@ pub async fn startup(config: &Settings) {
                 println!("No matching pattern");
             }
         },
-        ("twap", Some(matches)) => {
-            // twap buy <total order size> <asset symbol>  <time between interval in mins, number of intervals>
-
+        Some(("twap", matches)) => {
             match matches.subcommand() {
-                ("buy", Some(matches)) => {
+                Some(("buy", matches)) => {
                     let sz: OrderSize = matches
-                        .value_of("size")
+                        .get_one::<String>("size")
                         .expect("Size is required")
+                        .as_str()
                         .try_into()
                         .expect("Failed to parse order size");
 
-                    let symbol = matches.value_of("asset").expect("Asset is required");
+                    let symbol = matches.get_one::<String>("asset").expect("Asset is required");
 
-                    let interval: TwapInterval = matches.value_of("interval")
+                    let interval: TwapInterval = matches.get_one::<String>("interval")
                     .expect("Interval is required")
+                    .as_str()
                     .try_into().expect(
                         "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
@@ -1106,17 +1118,19 @@ pub async fn startup(config: &Settings) {
                         }
                     }
                 }
-                ("sell", Some(matches)) => {
+                Some(("sell", matches)) => {
                     let sz: OrderSize = matches
-                        .value_of("size")
+                        .get_one::<String>("size")
                         .expect("Size is required")
+                        .as_str()
                         .try_into()
                         .expect("Failed to parse order size");
 
-                    let symbol = matches.value_of("asset").expect("Asset is required");
+                    let symbol = matches.get_one::<String>("asset").expect("Asset is required");
 
-                    let interval: TwapInterval = matches.value_of("interval")
+                    let interval: TwapInterval = matches.get_one::<String>("interval")
                     .expect("Interval is required")
+                    .as_str()
                     .try_into().expect(
                         "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
@@ -1200,12 +1214,12 @@ pub async fn startup(config: &Settings) {
             }
         }
 
-        ("view", Some(view_matches)) => match view_matches.subcommand_name() {
-            Some("pnl") => {
+        Some(("view", matches)) => match matches.subcommand_name() {
+            Some("upnl") => {
                 let state = info
                     .clearing_house_state()
                     .await
-                    .expect("Failed to fetch pnl");
+                    .expect("Failed to fetch unrealized pnl");
 
                 let open_positions = state
                     .asset_positions
@@ -1301,16 +1315,17 @@ pub async fn startup(config: &Settings) {
             }
             _ => {
                 println!(
-                        " Invalid command: expected commands: (view pnl, view wallet balance, view unfilled orders, view open positions"
+                        " Invalid command: expected commands: (view upnl, view wallet balance, view unfilled orders, view open positions"
                     );
             }
         },
 
-        ("pair", Some(matches)) => match matches.subcommand() {
-            ("buy", Some(matches)) => {
+        Some(("pair", matches)) => match matches.subcommand() {
+            Some(("buy", matches)) => {
                 let sz: f64 = match matches
-                    .value_of("size")
-                    .unwrap()
+                    .get_one::<String>("size")
+                    .expect("Order size required")
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse order size")
                 {
@@ -1324,25 +1339,27 @@ pub async fn startup(config: &Settings) {
                 };
 
                 let pair: Pair = matches
-                    .value_of("pair")
-                    .unwrap()
+                    .get_one::<String>("pair")
+                    .expect("Pair is required")
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse pair");
 
                 let limit_price: LimitPrice = matches
-                    .value_of("price")
-                    .unwrap_or("@0")
+                    .get_one::<String>("price")
+                    .unwrap_or(&"@0".to_string())
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse limit price");
 
 
-                let tp: Option<f64> = matches.value_of("tp").map(|price| {
+                let tp: Option<f64> = matches.get_one::<String>("tp").map(|price| {
                         price.parse::<f64>().expect(
                             "Invalid take profit value, expected a number or a percentage value e.g 10%",
                         )
                     });
 
-                let sl: Option<f64> = matches.value_of("sl").map(|price| {
+                let sl: Option<f64> = matches.get_one::<String>("sl").map(|price| {
                     price.parse::<f64>().expect(
                         "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                     )
@@ -1876,10 +1893,11 @@ pub async fn startup(config: &Settings) {
                     }
                 }
             }
-            ("sell", Some(matches)) => {
+            Some(("sell", matches)) => {
                 let sz: f64 = match matches
-                    .value_of("size")
-                    .unwrap()
+                    .get_one::<String>("size")
+                    .expect("Order size required")
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse order size")
                 {
@@ -1893,24 +1911,26 @@ pub async fn startup(config: &Settings) {
                 };
 
                 let pair: Pair = matches
-                    .value_of("pair")
-                    .unwrap()
+                    .get_one::<String>("pair")
+                    .expect("Pair is required")
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse pair");
 
                 let limit_price: LimitPrice = matches
-                    .value_of("price")
-                    .unwrap_or("@0")
+                    .get_one::<String>("price")
+                    .unwrap_or(&"@0".to_string())
+                    .as_str()
                     .try_into()
                     .expect("Failed to parse limit price");
 
-                let sl: Option<f64> = matches.value_of("sl").map(|price| {
+                let sl: Option<f64> = matches.get_one::<String>("sl").map(|price| {
                     price.parse::<f64>().expect(
                         "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                     )
                 });
 
-                let tp: Option<f64> = matches.value_of("tp").map(|price| {
+                let tp: Option<f64> = matches.get_one::<String>("tp").map(|price| {
                     price.parse::<f64>().expect(
                         "Invalid take profit value, expected a number or a percentage value e.g 10%",
                     )
