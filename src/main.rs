@@ -1,8 +1,8 @@
-use hyperliquid::{cli, settings::Settings};
+use hyperliquid::{settings::Settings, startup::startup};
 
 #[tokio::main]
 async fn main() {
     let settings = Settings::new().expect("Failed to load config");
 
-    cli::cli(&settings).await;
+    startup(&settings).await;
 }
