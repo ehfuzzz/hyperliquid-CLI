@@ -18,7 +18,7 @@ pub struct Info {
 impl Info {
     pub async fn metadata(&self) -> Result<Universe, anyhow::Error> {
         Ok(self
-            .info(json!({
+            .post(json!({
                     "type": "meta",
             }))
             .await?)
@@ -26,7 +26,7 @@ impl Info {
 
     pub async fn asset_ctxs(&self) -> Result<Vec<AssetCtx>, anyhow::Error> {
         Ok(self
-            .info(json!({
+            .post(json!({
                     "type": "metaAndAssetCtxs",
             }))
             .await?)
@@ -56,7 +56,7 @@ impl Info {
 
     pub async fn clearing_house_state(&self) -> Result<ClearingHouseState, anyhow::Error> {
         let res = self
-            .info(json!({
+            .post(json!({
                     "type": "clearinghouseState",
                     "user": self.wallet.address(),
             }))
@@ -67,7 +67,7 @@ impl Info {
 
     pub async fn open_orders(&self) -> Result<Vec<UnfilledOrder>, anyhow::Error> {
         let res = self
-            .info(json!({
+            .post(json!({
                     "type": "openOrders",
                     "user": self.wallet.address(),
             }))
@@ -78,7 +78,7 @@ impl Info {
 
     pub async fn user_fills(&self) -> Result<Vec<UserFill>, anyhow::Error> {
         let res = self
-            .info(json!({
+            .post(json!({
                     "type": "userFills",
                     "user": self.wallet.address(),
             }))
@@ -87,7 +87,7 @@ impl Info {
         Ok(res)
     }
 
-    async fn info<T: for<'de> Deserialize<'de>>(
+    async fn post<T: for<'de> Deserialize<'de>>(
         &self,
         body: impl Serialize,
     ) -> Result<T, anyhow::Error> {

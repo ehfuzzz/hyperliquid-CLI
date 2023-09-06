@@ -10,9 +10,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::helpers::float_to_int_for_hashing;
-
-use super::{ExchangeResponse, OrderRequest};
+use super::{float_to_int_for_hashing, ExchangeResponse, OrderRequest};
 
 // <https://eips.ethereum.org/EIPS/eip-712>
 // <https://eips.ethereum.org/EIPS/eip-2612>

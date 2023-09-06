@@ -1,5 +1,6 @@
-use crate::helpers::float_to_int_for_hashing;
 use serde::{Deserialize, Serialize};
+
+use super::float_to_int_for_hashing;
 
 #[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]

@@ -7,8 +7,7 @@ use ethers::signers::LocalWallet;
 use secrecy::ExposeSecret;
 
 use crate::command::command;
-use crate::helpers::{
-    format_limit_price, format_size,};
+use crate::helpers::{format_price, format_size};
 use crate::hyperliquid::{
     Exchange, ExchangeResponse, HyperLiquid, Info, Limit, OrderRequest, OrderStatus, OrderType,
     Tif, Trigger, TriggerType,
@@ -127,7 +126,7 @@ pub async fn startup(config: &Settings) {
             };
 
             let order_type = OrderType::Trigger(Trigger {
-                trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                trigger_px: format_price(trigger_price).parse().unwrap(),
                 is_market: true,
                 tpsl: TriggerType::Tp,
             });
@@ -139,24 +138,56 @@ pub async fn startup(config: &Settings) {
             let order = OrderRequest {
                 asset,
                 is_buy: !is_buy,
-                limit_px: format_limit_price(trigger_price),
+                limit_px: format_price(trigger_price),
                 sz: format_size(sz, sz_decimals),
                 reduce_only: true,
                 order_type,
             };
 
-            let res = exchange.place_order(order).await;
-            match res {
-                Ok(order) => match order {
-                    ExchangeResponse::Err(err) => println!("{:#?}", err),
-                    ExchangeResponse::Ok(_order) => {
-                        // println!("Order placed: {:#?}", order);
-                        println!("{}", "-".repeat(35));
-                        println!("\nTake profit order was successfully placed.\n")
+            println!("{}", "---".repeat(20));
+            println!("Side: Close Long");
+            println!(
+                "Size in {}: {}",
+                symbol,
+                order.sz
+            );
+            println!(
+                "Size in USD: {}",
+                format_size(sz * entry_price, sz_decimals)
+            );
+            println!("Entry price: {}", entry_price);
+
+            match exchange.place_order(order).await {
+                Ok(order) => {
+                    match order {
+                        ExchangeResponse::Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        }
+                        ExchangeResponse::Ok(order) => {
+                            order.data.statuses.iter().for_each(|status| match status {
+                            OrderStatus::Filled(order) => {
+                                println!("Take profit order {} was successfully filled.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Resting(order) => {
+                                println!("Take profit order {} was successfully placed.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Error(msg) => {
+                                println!("Take profit order failed with error: {:#?}\n", msg)
+                            }
+                        });
+                        }
                     }
-                },
-                Err(err) => println!("{:#?}", err),
+                }
+                Err(err) => {
+                    println!("{:#?}", err);
+                    return;
+                }
             }
+
+        
         }
         Some(("sl", matches)) => {
             let sz: OrderSize = matches
@@ -240,7 +271,7 @@ pub async fn startup(config: &Settings) {
             };
 
             let order_type = OrderType::Trigger(Trigger {
-                trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                trigger_px: format_price(trigger_price).parse().unwrap(),
                 is_market: true,
                 tpsl: TriggerType::Sl,
             });
@@ -252,22 +283,54 @@ pub async fn startup(config: &Settings) {
             let order = OrderRequest {
                 asset,
                 is_buy: is_buy,
-                limit_px: format_limit_price(trigger_price),
+                limit_px: format_price(trigger_price),
                 sz: format_size(sz, sz_decimals),
                 reduce_only: true,
                 order_type,
             };
 
-            let res = exchange.place_order(order).await;
-            match res {
-                Ok(order) => match order {
-                    ExchangeResponse::Err(err) => println!("{:#?}", err),
-                    ExchangeResponse::Ok(_order) => {
-                        // println!("Order placed: {:#?}", order);
-                        println!("Stop loss order was successfully placed.\n")
+            println!("{}", "---".repeat(20));
+
+            println!("Side: Close Long");
+            println!(
+                "Size in {}: {}",
+                symbol,
+                order.sz
+            );
+            println!(
+                "Size in USD: {}",
+                format_size(sz * entry_price, sz_decimals)
+            );
+            println!("Entry price: {}", entry_price);
+
+            match exchange.place_order(order).await {
+                Ok(order) => {
+                    match order {
+                        ExchangeResponse::Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        }
+                        ExchangeResponse::Ok(order) => {
+                            order.data.statuses.iter().for_each(|status| match status {
+                            OrderStatus::Filled(order) => {
+                                println!("Stop loss order {} was successfully filled.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Resting(order) => {
+                                println!("Stop loss order {} was successfully placed.\n", order.oid);
+                                
+                            }
+                            OrderStatus::Error(msg) => {
+                                println!("Stop loss order failed with error: {:#?}\n", msg)
+                            }
+                        });
+                        }
                     }
-                },
-                Err(err) => println!("{:#?}", err),
+                }
+                Err(err) => {
+                    println!("{:#?}", err);
+                    return;
+                }
             }
         }
 
@@ -359,7 +422,7 @@ pub async fn startup(config: &Settings) {
             let order = OrderRequest {
                 asset,
                 is_buy: true,
-                limit_px: format_limit_price(limit_price),
+                limit_px: format_price(limit_price),
                 sz: format_size(sz, sz_decimals),
                 reduce_only: false,
                 order_type,
@@ -427,7 +490,7 @@ pub async fn startup(config: &Settings) {
 
 
                 let order_type = OrderType::Trigger(Trigger {
-                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    trigger_px: format_price(trigger_price).parse().unwrap(),
                     is_market: true,
                     tpsl: TriggerType::Tp,
                 });
@@ -435,7 +498,7 @@ pub async fn startup(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: false,
-                    limit_px: format_limit_price(trigger_price),
+                    limit_px: format_price(trigger_price),
                     sz: format_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
@@ -497,7 +560,7 @@ pub async fn startup(config: &Settings) {
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
-                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    trigger_px: format_price(trigger_price).parse().unwrap(),
                     is_market: true,
                     tpsl: TriggerType::Sl,
                 });
@@ -505,7 +568,7 @@ pub async fn startup(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: false,
-                    limit_px: format_limit_price(trigger_price),
+                    limit_px: format_price(trigger_price),
                     sz: format_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
@@ -646,7 +709,7 @@ pub async fn startup(config: &Settings) {
             let order = OrderRequest {
                 asset,
                 is_buy: false,
-                limit_px: format_limit_price(limit_price),
+                limit_px: format_price(limit_price),
                 sz: format_size(sz, sz_decimals),
                 reduce_only: false,
                 order_type,
@@ -712,7 +775,7 @@ pub async fn startup(config: &Settings) {
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
-                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    trigger_px: format_price(trigger_price).parse().unwrap(),
                     is_market: true,
                     tpsl: TriggerType::Tp,
                 });
@@ -720,7 +783,7 @@ pub async fn startup(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: true,
-                    limit_px: format_limit_price(trigger_price),
+                    limit_px: format_price(trigger_price),
                     sz: format_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
@@ -782,7 +845,7 @@ pub async fn startup(config: &Settings) {
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
-                    trigger_px: format_limit_price(trigger_price).parse().unwrap(),
+                    trigger_px: format_price(trigger_price).parse().unwrap(),
                     is_market: true,
                     tpsl: TriggerType::Sl,
                 });
@@ -790,7 +853,7 @@ pub async fn startup(config: &Settings) {
                 let order = OrderRequest {
                     asset,
                     is_buy: true,
-                    limit_px: format_limit_price(trigger_price),
+                    limit_px: format_price(trigger_price),
                     sz: format_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
@@ -894,13 +957,13 @@ pub async fn startup(config: &Settings) {
                         "Size in USD: {}",
                         format_size(sz * market_price, sz_decimals)
                     );
-                    println!("Entry price: {}", format_limit_price(limit_price));
+                    println!("Entry price: {}", format_price(limit_price));
                     println!("Market price: {}\n", market_price);
 
                     let order = OrderRequest {
                         asset,
                         is_buy: true,
-                        limit_px: format_limit_price(limit_price),
+                        limit_px: format_price(limit_price),
                         sz: format_size(sz, sz_decimals),
                         reduce_only: false,
                         order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
@@ -983,13 +1046,13 @@ pub async fn startup(config: &Settings) {
                         "Size in USD: {}",
                         format_size(sz * market_price, sz_decimals)
                     );
-                    println!("Entry price: {}", format_limit_price(limit_price));
+                    println!("Entry price: {}", format_price(limit_price));
                     println!("Market price: {}\n", market_price);
 
                     let order = OrderRequest {
                         asset,
                         is_buy: false,
-                        limit_px: format_limit_price(limit_price),
+                        limit_px: format_price(limit_price),
                         sz: format_size(sz, sz_decimals),
                         reduce_only: false,
                         order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
@@ -1088,7 +1151,7 @@ pub async fn startup(config: &Settings) {
                         let order = OrderRequest {
                             asset,
                             is_buy: true,
-                            limit_px: format_limit_price(limit_price),
+                            limit_px: format_price(limit_price),
                             sz: format_size(sz, sz_decimals),
                             reduce_only: false,
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -1178,7 +1241,7 @@ pub async fn startup(config: &Settings) {
                         let order = OrderRequest {
                             asset,
                             is_buy: false,
-                            limit_px: format_limit_price(limit_price),
+                            limit_px: format_price(limit_price),
                             sz: format_size(sz, sz_decimals),
                             reduce_only: false,
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -1398,7 +1461,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: base_asset,
                                     is_buy: true,
-                                    limit_px: format_limit_price(limit_price),
+                                    limit_px: format_price(limit_price),
                                     sz: format_size(sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -1465,7 +1528,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: quote_asset,
                                     is_buy: false,
-                                    limit_px: format_limit_price(limit_price),
+                                    limit_px: format_price(limit_price),
                                     sz: format_size(sz, quote_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -1583,7 +1646,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: base_asset,
                                     is_buy: true,
-                                    limit_px: format_limit_price(
+                                    limit_px: format_price(
                                         base_market_price * (1.0 + slippage),
                                     ),
                                     sz: format_size(base_sz, base_sz_decimals),
@@ -1641,7 +1704,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: quote_asset,
                                     is_buy: false,
-                                    limit_px: format_limit_price(
+                                    limit_px: format_price(
                                         quote_market_price * (1.0 - slippage),
                                     ),
                                     sz: format_size(quote_sz, quote_sz_decimals),
@@ -1741,7 +1804,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: false,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             base_market_price * (1.0 - slippage),
                                         ),
                                         sz: format_size(base_sz, base_sz_decimals),
@@ -1752,7 +1815,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_short_order = OrderRequest {
                                         asset: quote_asset,
                                         is_buy: true,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             quote_market_price * (1.0 + slippage),
                                         ),
                                         sz: format_size(quote_sz, quote_sz_decimals),
@@ -1771,7 +1834,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: false,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             base_market_price * (1.0 - slippage),
                                         ),
                                         sz: format_size(base_sz, base_sz_decimals),
@@ -1782,7 +1845,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_short_order = OrderRequest {
                                         asset: quote_asset,
                                         is_buy: true,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             quote_market_price * (1.0 + slippage),
                                         ),
                                         sz: format_size(quote_sz, quote_sz_decimals),
@@ -1969,7 +2032,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: base_asset,
                                     is_buy: false,
-                                    limit_px: format_limit_price(limit_price),
+                                    limit_px: format_price(limit_price),
                                     sz: format_size(sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -2036,7 +2099,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: quote_asset,
                                     is_buy: true,
-                                    limit_px: format_limit_price(limit_price),
+                                    limit_px: format_price(limit_price),
                                     sz: format_size(sz, quote_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -2155,7 +2218,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: base_asset,
                                     is_buy: false,
-                                    limit_px: format_limit_price(
+                                    limit_px: format_price(
                                         base_market_price * (1.0 - slippage),
                                     ),
                                     sz: format_size(base_sz, base_sz_decimals),
@@ -2214,7 +2277,7 @@ pub async fn startup(config: &Settings) {
                                 let order = OrderRequest {
                                     asset: quote_asset,
                                     is_buy: true,
-                                    limit_px: format_limit_price(
+                                    limit_px: format_price(
                                         quote_market_price * (1.0 + slippage),
                                     ),
                                     sz: format_size(quote_sz, quote_sz_decimals),
@@ -2314,7 +2377,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_short_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: true,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             base_market_price * (1.0 + slippage),
                                         ),
                                         sz: format_size(base_sz, base_sz_decimals),
@@ -2325,7 +2388,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_long_order = OrderRequest {
                                         asset: quote_asset,
                                         is_buy: false,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             quote_market_price * (1.0 - slippage),
                                         ),
                                         sz: format_size(quote_sz, quote_sz_decimals),
@@ -2344,7 +2407,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_short_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: true,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             base_market_price * (1.0 + slippage),
                                         ),
                                         sz: format_size(base_sz, base_sz_decimals),
@@ -2355,7 +2418,7 @@ pub async fn startup(config: &Settings) {
                                     let exit_long_order = OrderRequest {
                                         asset: quote_asset,
                                         is_buy: false,
-                                        limit_px: format_limit_price(
+                                        limit_px: format_price(
                                             quote_market_price * (1.0 - slippage),
                                         ),
                                         sz: format_size(quote_sz, quote_sz_decimals),
