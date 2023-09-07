@@ -121,6 +121,20 @@ pub enum ExchangeResponse {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct ResponseType {
+    #[serde(rename = "type")]
+    pub type_: String,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct  LeverageResponse {
+    pub status: String,
+    pub response: ResponseType,
+}
+
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Asset {
     pub name: String,
     pub sz_decimals: u32,

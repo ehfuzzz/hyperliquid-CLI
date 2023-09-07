@@ -10,7 +10,7 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::{float_to_int_for_hashing, ExchangeResponse, OrderRequest};
+use super::{float_to_int_for_hashing, ExchangeResponse, OrderRequest,LeverageResponse};
 
 // <https://eips.ethereum.org/EIPS/eip-712>
 // <https://eips.ethereum.org/EIPS/eip-2612>
@@ -97,15 +97,15 @@ impl Exchange {
         leverage: u32,
         asset: u32,
         is_cross: bool,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<LeverageResponse, anyhow::Error> {
         let nonce = self.timestamp();
 
         let vault_address = Address::zero();
         let connection_id =
             keccak256((asset, is_cross, leverage, vault_address, nonce).encode()).into();
 
-        let res = self
-            .post::<serde_json::Value>(json!({
+        let res= self
+            .post(json!({
                 "action": {
                     "type": "updateLeverage",
                     "asset": asset,
@@ -115,11 +115,11 @@ impl Exchange {
                 "nonce": nonce,
                 "signature": self.signature(connection_id).await,
             }))
-            .await;
+            .await?;
 
-        println!("{:?}", res);
+        Ok(res)
 
-        Ok(())
+    
     }
 
     async fn post<T: for<'de> Deserialize<'de>>(
