@@ -25,8 +25,8 @@ pub async fn startup(config: &Settings) {
             .expect("Failed to parse private key"),
     );
 
-    let info: Info = HyperLiquid::new(wallet.clone());
-    let exchange: Exchange = HyperLiquid::new(wallet.clone());
+    let info: Info = HyperLiquid::new(wallet.clone(), config.network.api.clone());
+    let exchange: Exchange = HyperLiquid::new(wallet.clone(), config.network.api.clone());
 
     let metadata = info.metadata().await.expect("Failed to fetch metadata");
 
@@ -55,17 +55,17 @@ pub async fn startup(config: &Settings) {
                 // loop through all assets and update leverage
 
                 for (symbol, v) in &assets {
-                    println!("Updating leverage for {} to {}%", symbol, leverage);
+                    println!("Updating leverage for {} to {}%\n", symbol, leverage);
                     let is_cross = if let MarginType::Cross = config.default_margin.value {
                         true
                     } else {
                         false
                     };
 
-                    let res = exchange.update_leverage(leverage, v.1, is_cross).await;
-
-                    match res {
-                        Ok(_) => println!("Leverage updated successfully"),
+                    match  exchange.update_leverage(leverage, v.1, is_cross).await {
+                        Ok(_) => {
+                            println!("Successfully updated leverage for {} ✔️\n---", symbol);
+                        }
                         Err(err) => println!("Failed to update leverage: {:#?}", err),
                     }
 
@@ -196,9 +196,11 @@ pub async fn startup(config: &Settings) {
                     ExchangeResponse::Err(err) => {
                         println!("{:#?}", err);
                         return;
+                    
                     }
+                    
                     ExchangeResponse::Ok(order) => {
-                        order.data.statuses.iter().for_each(|status| match status {
+                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                             OrderStatus::Filled(order) => {
                                 println!(
                                     "Take profit order {} was successfully filled.\n",
@@ -338,9 +340,11 @@ pub async fn startup(config: &Settings) {
                     ExchangeResponse::Err(err) => {
                         println!("{:#?}", err);
                         return;
+                    
                     }
+                    
                     ExchangeResponse::Ok(order) => {
-                        order.data.statuses.iter().for_each(|status| match status {
+                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                             OrderStatus::Filled(order) => {
                                 println!(
                                     "Stop loss order {} was successfully filled.\n",
@@ -478,9 +482,11 @@ pub async fn startup(config: &Settings) {
                     ExchangeResponse::Err(err) => {
                         println!("{:#?}", err);
                         return;
+                    
                     }
+                    
                     ExchangeResponse::Ok(order) => {
-                        order.data.statuses.iter().for_each(|status| match status {
+                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                             OrderStatus::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
                             }
@@ -539,9 +545,11 @@ pub async fn startup(config: &Settings) {
                         ExchangeResponse::Err(err) => {
                             println!("{:#?}", err);
                             return;
+                        
                         }
+                        
                         ExchangeResponse::Ok(order) => {
-                            order.data.statuses.iter().for_each(|status| match status {
+                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                 OrderStatus::Filled(order) => {
                                     println!(
                                         "Take profit order {} was successfully filled.\n",
@@ -607,9 +615,11 @@ pub async fn startup(config: &Settings) {
                         ExchangeResponse::Err(err) => {
                             println!("{:#?}", err);
                             return;
+                        
                         }
+                        
                         ExchangeResponse::Ok(order) => {
-                            order.data.statuses.iter().for_each(|status| match status {
+                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                 OrderStatus::Filled(order) => {
                                     println!(
                                         "Stop loss order {} was successfully filled.\n",
@@ -748,9 +758,11 @@ pub async fn startup(config: &Settings) {
                     ExchangeResponse::Err(err) => {
                         println!("{:#?}", err);
                         return;
+                    
                     }
+                    
                     ExchangeResponse::Ok(order) => {
-                        order.data.statuses.iter().for_each(|status| match status {
+                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                             OrderStatus::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
                             }
@@ -808,9 +820,11 @@ pub async fn startup(config: &Settings) {
                         ExchangeResponse::Err(err) => {
                             println!("{:#?}", err);
                             return;
+                        
                         }
+                        
                         ExchangeResponse::Ok(order) => {
-                            order.data.statuses.iter().for_each(|status| match status {
+                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                 OrderStatus::Filled(order) => {
                                     println!(
                                         "Take profit order {} was successfully filled.\n",
@@ -875,9 +889,11 @@ pub async fn startup(config: &Settings) {
                         ExchangeResponse::Err(err) => {
                             println!("{:#?}", err);
                             return;
+                        
                         }
+                        
                         ExchangeResponse::Ok(order) => {
-                            order.data.statuses.iter().for_each(|status| match status {
+                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                 OrderStatus::Filled(order) => {
                                     println!(
                                         "Stop loss order {} was successfully filled.\n",
@@ -975,9 +991,11 @@ pub async fn startup(config: &Settings) {
                             ExchangeResponse::Err(err) => {
                                 println!("{:#?}", err);
                                 return;
+                            
                             }
+                            
                             ExchangeResponse::Ok(order) => {
-                                order.data.statuses.iter().for_each(|status| match status {
+                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                     OrderStatus::Filled(order) => {
                                         println!("Order {} was successfully filled.\n", order.oid)
                                     }
@@ -1066,9 +1084,11 @@ pub async fn startup(config: &Settings) {
                             ExchangeResponse::Err(err) => {
                                 println!("{:#?}", err);
                                 return;
+                            
                             }
+                            
                             ExchangeResponse::Ok(order) => {
-                                order.data.statuses.iter().for_each(|status| match status {
+                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                     OrderStatus::Filled(order) => {
                                         println!("Order {} was successfully filled.\n", order.oid)
                                     }
@@ -1490,9 +1510,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1560,9 +1582,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1679,9 +1703,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1735,9 +1761,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -1887,9 +1915,11 @@ pub async fn startup(config: &Settings) {
                                 ExchangeResponse::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
+                                
                                 }
+                                
                                 ExchangeResponse::Ok(order) => {
-                                    order.data.statuses.iter().for_each(|status| match status {
+                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                         OrderStatus::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -1929,9 +1959,11 @@ pub async fn startup(config: &Settings) {
                                 ExchangeResponse::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
+                                
                                 }
+                                
                                 ExchangeResponse::Ok(order) => {
-                                    order.data.statuses.iter().for_each(|status| match status {
+                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                         OrderStatus::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2057,9 +2089,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -2127,9 +2161,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -2247,9 +2283,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -2304,9 +2342,11 @@ pub async fn startup(config: &Settings) {
                                             ExchangeResponse::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
+                                            
                                             }
+                                            
                                             ExchangeResponse::Ok(order) => {
-                                                order.data.statuses.iter().for_each(|status| match status {
+                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                                 OrderStatus::Filled(order) => {
                                                     println!("Order {} was successfully filled.\n", order.oid);
                                                     
@@ -2456,9 +2496,11 @@ pub async fn startup(config: &Settings) {
                                 ExchangeResponse::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
+                                
                                 }
+                                
                                 ExchangeResponse::Ok(order) => {
-                                    order.data.statuses.iter().for_each(|status| match status {
+                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                         OrderStatus::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2498,9 +2540,11 @@ pub async fn startup(config: &Settings) {
                                 ExchangeResponse::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
+                                
                                 }
+                                
                                 ExchangeResponse::Ok(order) => {
-                                    order.data.statuses.iter().for_each(|status| match status {
+                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                                         OrderStatus::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",

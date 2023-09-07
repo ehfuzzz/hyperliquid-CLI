@@ -1,3 +1,6 @@
+[network]
+api = "https://api.hyperliquid-testnet.xyz"
+
 [account]
 private_key = "0x..."
 

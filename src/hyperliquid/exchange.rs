@@ -2,7 +2,6 @@ use std::{fmt::Debug, sync::Arc, time::SystemTime};
 
 use ethers::{
     abi::AbiEncode,
-    contract::{Eip712, EthAbiType},
     signers::{LocalWallet, Signer},
     types::{Address, Signature, H256},
     utils::keccak256,
@@ -10,30 +9,17 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::{float_to_int_for_hashing, ExchangeResponse, OrderRequest,LeverageResponse};
-
-// <https://eips.ethereum.org/EIPS/eip-712>
-// <https://eips.ethereum.org/EIPS/eip-2612>
-#[derive(Eip712, EthAbiType, Clone, Debug)]
-#[eip712(
-    name = "Exchange",
-    version = "1",
-    chain_id = 1337,
-    verifying_contract = "0x0000000000000000000000000000000000000000"
-)]
-pub struct Agent {
-    pub source: String,
-    pub connection_id: H256,
-}
+use super::{float_to_int_for_hashing, l1, ExchangeResponse, OrderRequest};
 
 pub struct Exchange {
     pub wallet: Arc<LocalWallet>,
     pub client: reqwest::Client,
+    pub base_url: String,
 }
 
 impl Exchange {
     async fn signature(&self, connection_id: H256) -> Signature {
-        let payload = Agent {
+        let payload = l1::Agent {
             source: "a".to_string(),
             connection_id,
         };
@@ -97,14 +83,14 @@ impl Exchange {
         leverage: u32,
         asset: u32,
         is_cross: bool,
-    ) -> Result<LeverageResponse, anyhow::Error> {
+    ) -> Result<ExchangeResponse, anyhow::Error> {
         let nonce = self.timestamp();
 
         let vault_address = Address::zero();
         let connection_id =
             keccak256((asset, is_cross, leverage, vault_address, nonce).encode()).into();
 
-        let res= self
+        let res = self
             .post(json!({
                 "action": {
                     "type": "updateLeverage",
@@ -118,8 +104,6 @@ impl Exchange {
             .await?;
 
         Ok(res)
-
-    
     }
 
     async fn post<T: for<'de> Deserialize<'de>>(
@@ -128,7 +112,7 @@ impl Exchange {
     ) -> Result<T, anyhow::Error> {
         let res = self
             .client
-            .post("https://api.hyperliquid-testnet.xyz/exchange")
+            .post(format!("{}/exchange", self.base_url))
             .json(&body)
             .send()
             .await?

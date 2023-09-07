@@ -13,6 +13,7 @@ use super::{
 pub struct Info {
     pub wallet: Arc<LocalWallet>,
     pub client: reqwest::Client,
+    pub base_url: String,
 }
 
 impl Info {
@@ -93,7 +94,7 @@ impl Info {
     ) -> Result<T, anyhow::Error> {
         let res = self
             .client
-            .post("https://api.hyperliquid-testnet.xyz/info")
+            .post(format!("{}/info", self.base_url))
             .json(&body)
             .send()
             .await?

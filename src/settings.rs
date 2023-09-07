@@ -34,11 +34,17 @@ pub struct DefaultAssetConfig {
 }
 
 #[derive(Deserialize)]
+pub struct NetworkConfig {
+    pub api: String,
+}
+
+#[derive(Deserialize)]
 pub struct Settings {
     pub account: AccountConfig,
     pub default_size: DefaultSizeConfig,
     pub default_margin: DefaultMarginConfig,
     pub default_asset: DefaultAssetConfig,
+    pub network: NetworkConfig,
 }
 
 impl Settings {

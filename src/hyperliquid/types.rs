@@ -106,32 +106,18 @@ pub struct OrderResponseData {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct OrderResponse {
+pub struct Response {
     #[serde(rename = "type")]
-    pub type_name: String,
-    pub data: OrderResponseData,
+    pub type_: String,
+    pub data: Option<OrderResponseData>,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "lowercase", tag = "status", content = "response")]
 pub enum ExchangeResponse {
-    Ok(OrderResponse),
+    Ok(Response),
     Err(String),
 }
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ResponseType {
-    #[serde(rename = "type")]
-    pub type_: String,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct  LeverageResponse {
-    pub status: String,
-    pub response: ResponseType,
-}
-
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
