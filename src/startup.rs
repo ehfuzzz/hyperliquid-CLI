@@ -516,10 +516,7 @@ pub async fn startup(config: &Settings) {
 
                     None => unreachable!("Expected a take profit value"),
                 };
-
-                println!("tp: {}", trigger_price);
-                
-    
+                    
                 let order_type = OrderType::Trigger(Trigger {
                     trigger_px: format_price(trigger_price).parse().unwrap(),
                     is_market: true,

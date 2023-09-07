@@ -153,8 +153,6 @@ impl TryFrom<&str> for TpSl {
             (value, "")
         };
 
-        println!("size: {}, unit: {}", size, unit);
-
         let size = size.parse::<f64>().map_err(|_| "Invalid size")?;
         match unit {
             "%" => Ok(TpSl::Percent(size)),
