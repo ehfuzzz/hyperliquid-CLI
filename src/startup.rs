@@ -401,6 +401,7 @@ pub async fn startup(config: &Settings) {
                 )
             });
 
+        
             // ----------------------------------------------
 
             let asset_ctx = info
@@ -507,6 +508,7 @@ pub async fn startup(config: &Settings) {
 
             // tp
             if tp.is_some() {
+
                 let trigger_price = match tp {
                     Some(TpSl::Absolute(value)) => limit_price + value,
                     Some(TpSl::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
@@ -514,7 +516,7 @@ pub async fn startup(config: &Settings) {
 
                     None => unreachable!("Expected a take profit value"),
                 };
-
+                    
                 let order_type = OrderType::Trigger(Trigger {
                     trigger_px: format_price(trigger_price).parse().unwrap(),
                     is_market: true,

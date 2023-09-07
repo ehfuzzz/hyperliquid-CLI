@@ -92,6 +92,7 @@ example: `cargo run -- sell  $100 eth tp +10% sl -1%pnl` - places a sell order f
 
 example: `cargo run --twap buy 100 eth 5,10` - places a twap buy order for 100 usd. The order will be divided into 10 pieces and each piece will be bought every 5 minutes.
 
+
 #### Twap Sell
 
 `cargo run -- twap sell <size> <asset> <time between interval in mins, number of intervals>` - Divides the total order size by the number of intervals. After the time between intervals, each piece of the divided order will be sold at market
@@ -173,6 +174,7 @@ example: `cargo run -- scale sell 100/10 eth 1800 1890` - Scales into a short po
 
 #### View Open Positions
 `cargo run -- view open positions` - View the current open positions
+
 
 
 
