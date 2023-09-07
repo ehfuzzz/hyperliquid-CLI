@@ -46,6 +46,8 @@ example 1: `cargo run -- pair buy 100 btc/eth --price 0.05 --sl 0.04 --tp 0.06` 
 
 example 2: `cargo run -- pair buy 100 btc/eth` - Takes 50% of order size and longs btc and takes another 50% of order size and shorts eth in a pair. The current market price of btc/eth will be used to enter the trade. The stop loss and take profit will not be set
 
+example 3: `cargo run -- pair buy 100 btc/eth --price 0.05` - Takes 50% of order size and longs btc and takes another 50% of order size and shorts eth in a pair. The ratio of btc/eth is 0.05 so the bot will enter the trade when the ratio is 0.05. The stop loss and take profit will not be set
+
 #### Pair Sell
 `cargo run -- pair sell <size> <pair> --price <price> --sl <sl> --tp <tp>` - Takes 50% of order size and shorts Asset X and takes another 50% of order size and longs Asset Y in a pair
 
@@ -62,6 +64,8 @@ tp:[_optional_] is the ratio of the market price of Asset X/Asset Y to set the t
 example 1: `cargo run -- pair sell 100 btc/eth --price 0.05 --sl 0.04 --tp 0.06` - Takes 50% of order size and shorts btc and takes another 50% of order size and longs eth in a pair. The ratio of btc/eth is 0.05 so the bot will enter the trade when the ratio is 0.05. The stop loss will be set at 0.04 and the take profit will be set at 0.06
 
 example 2: `cargo run -- pair sell 100 btc/eth` - Takes 50% of order size and shorts btc and takes another 50% of order size and longs eth in a pair. The current market price of btc/eth will be used to enter the trade. The stop loss and take profit will not be set
+
+example 3: `cargo run -- pair sell 100 btc/eth --price 0.05` - Takes 50% of order size and shorts btc and takes another 50% of order size and longs eth in a pair. The ratio of btc/eth is 0.05 so the bot will enter the trade when the ratio is 0.05. The stop loss and take profit will not be set
 
 #### Scale Buy
 `cargo run -- scale buy <size_per_interval> <asset> <lower> <upper> ` - Scales into a long position by placing limit orders at intervals between the lower and upper price
@@ -100,14 +104,6 @@ example: `cargo run -- scale sell 100/10 eth 1800 1890` - Scales into a short po
 
 #### View Open Positions
 `cargo run -- view open positions` - View the current open positions
-
-#### Twap Sell
-<!-- twap sell <total order size> <asset symbol>  <time between interval in mins, number of intervals>
-
-Same thing as twap buy but short instead. 
- -->
-
- `cargo run -- twap sell <size> <asset>  <interval>` - 
 
 
 
