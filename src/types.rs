@@ -137,7 +137,7 @@ impl TryFrom<&str> for Pair {
 }
 
 pub enum TpSl {
-    Percent(u8),   // 10%
+    Percent(f64),   // 10%
     Fixed(f64),    // 1990
     Absolute(f64), // +/- 10
 }
@@ -153,9 +153,11 @@ impl TryFrom<&str> for TpSl {
             (value, "")
         };
 
+        println!("size: {}, unit: {}", size, unit);
+
         let size = size.parse::<f64>().map_err(|_| "Invalid size")?;
         match unit {
-            "%" => Ok(TpSl::Percent(size as u8)),
+            "%" => Ok(TpSl::Percent(size)),
             _ => {
                 if value.starts_with("+") || value.starts_with("-") {
                     Ok(TpSl::Absolute(size))
