@@ -54,9 +54,10 @@ example `cargo run  -- sl 50% sol -10%pnl` - sets a stop loss order for 50% of t
 
 `cargo run -- buy --size <size> --asset <asset> --price <price> --sl <sl> --tp <tp>` - places a buy order for the specified asset
 
-size:[_required_] is the order size
+size:[_optional_] is the order size. If not specified, the default order size in the config will be used
 
-asset:[_required_] is the asset to buy
+asset:[_optional_] is the asset to sell. If not specified, the default asset in the config will be used
+
 
 price:[_optional_] is the price to buy the asset at. If not specified, the current market price will be used but if provided the a limit order will be placed at the specified price
 
@@ -74,9 +75,9 @@ example 3: `cargo run -- buy --size 100 --asset btc` - places a buy order for 10
 
 `cargo run -- sell --size <size> --asset <asset> --price <price> --sl <sl> --tp <tp>` - places a sell order for the specified asset
 
-size:[_required_] is the order size
+size:[_optional_] is the order size. If not specified, the default order size in the config will be used
 
-asset:[_required_] is the asset to sell
+asset:[_optional_] is the asset to sell. If not specified, the default asset in the config will be used
 
 price:[_optional_] is the price to sell the asset at. If not specified, the current market price will be used but if provided the a limit order will be placed at the specified price
 
