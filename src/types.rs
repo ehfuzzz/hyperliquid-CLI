@@ -180,3 +180,14 @@ pub struct Config {
     pub default_asset: String,
     pub default_size: String,
 }
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            private_key: String::new(),
+            default_margin: MarginType::Isolated,
+            default_asset: String::new(),
+            default_size: String::new(),
+        }
+    }
+}

@@ -8,7 +8,7 @@ use hyperliquid::{Hyperliquid, Info, Exchange, types::{exchange::{request::{Chai
 use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair, Config}, helpers::asset_ctx};
 
 
-pub async fn startup(config: &mut Config) {
+pub async fn startup(config: &Config) {
     let wallet = Arc::new(
         match config
             .private_key
@@ -34,28 +34,6 @@ pub async fn startup(config: &mut Config) {
         .collect::<HashMap<String, (u32, u32)>>();
 
     match command().get_matches().subcommand() {
-        Some(("login", matches)) => {
-            let private_key = matches
-                .get_one::<String>("private_key")
-                .expect("Private key is required").to_string();
-
-            let wallet = match private_key.parse::<LocalWallet>() {
-                Ok(wallet) => wallet,
-                Err(_) => {
-                    println!("Error: Invalid private key");
-                    return;
-                }
-            };
-
-            println!("Logging in with wallet: {}\n", wallet.address());
-
-            config.private_key = private_key;
-
-            match config.save() {
-                Ok(_) => println!("Wallet successfully saved ✔️\n---"),
-                Err(err) => println!("Failed to save wallet: {:#?}", err),
-            }
-        }
         Some(("set", matches)) => match matches.subcommand() {
             Some(("dl", matches)) => {
                 let leverage = matches
@@ -90,85 +68,10 @@ pub async fn startup(config: &mut Config) {
                     
                 }
             }
-            Some(("ds", matches)) => {
-                let _sz: OrderSize = match matches
-                .get_one::<String>("size")
-                .expect("Order size is required")
-                .as_str()
-                .try_into() {
-                    Ok(sz) => sz,
-                    Err(err) => {
-                        println!("Failed to parse order size: {:#?}", err);
-                        return;
-                    }
-                };
-
-
-                let sz = matches
-                .get_one::<String>("size")
-                .expect("Order size is required").trim().to_string();
-
-
-                println!("Setting default size to {}\n", sz);
-
-                config.default_size = sz;
-                match config.save() {
-                    Ok(_) => println!("Successfully updated default size ✔️\n---"),
-                    Err(err) => println!("Failed to update default size: {:#?}", err),
-                }
-            }
-
-            Some(("dm", matches)) => {
-                let margin = matches
-                    .get_one::<String>("margin")
-                    .expect("Margin is required");
-
-                let margin = match margin.to_lowercase().as_str() {
-                    "c" => MarginType::Cross,
-                    "i" => MarginType::Isolated,
-                    _ => {
-                        println!("Invalid margin type");
-                        return;
-                    }
-                };
-
-                println!("Setting default margin to {}\n", if let MarginType::Cross = margin {
-                    "Cross"
-                } else {
-                    "Isolated"
-                });
-
-                config.default_margin = margin;
-
-                match config.save() {
-                    Ok(_) => println!("Successfully updated default asset ✔️\n---"),
-                    Err(err) => println!("Failed to update default asset: {:#?}", err),
-                }
-
-            }
-
-            Some(("da", matches)) => {
-                let asset = matches
-                .get_one::<String>("asset")
-                .expect("Asset is required");
-
-                println!("Setting default asset to {}\n", asset);
-
-                config.default_asset = asset.to_string();
-
-                match config.save() {
-                    Ok(_) => println!("Successfully updated default asset ✔️\n---"),
-                    Err(err) => println!("Failed to update default asset: {:#?}", err),
-                }
-
-                
-
-            }
             _ => {
                 println!("Invalid command");
                 return;
             }
-
         },
         Some(("tp", matches)) => {
             let sz: OrderSize = matches
