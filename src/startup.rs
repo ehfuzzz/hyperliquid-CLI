@@ -34,6 +34,28 @@ pub async fn startup(config: &mut Config) {
         .collect::<HashMap<String, (u32, u32)>>();
 
     match command().get_matches().subcommand() {
+        Some(("login", matches)) => {
+            let private_key = matches
+                .get_one::<String>("private_key")
+                .expect("Private key is required").to_string();
+
+            let wallet = match private_key.parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            };
+
+            println!("Logging in with wallet: {}\n", wallet.address());
+
+            config.private_key = private_key;
+
+            match config.save() {
+                Ok(_) => println!("Wallet successfully saved ✔️\n---"),
+                Err(err) => println!("Failed to save wallet: {:#?}", err),
+            }
+        }
         Some(("set", matches)) => match matches.subcommand() {
             Some(("dl", matches)) => {
                 let leverage = matches
