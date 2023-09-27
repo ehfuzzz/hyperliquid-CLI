@@ -7,6 +7,16 @@ pub fn command() -> Command {
         .author(env!("CARGO_PKG_AUTHORS"))
         .about("A CLI bot to interact with the hyperliquid exchange")
         .subcommand(
+            Command::new("login")
+                .about("Sets wallet to be used for trading")
+                .arg(
+                    Arg::new("private_key")
+                        .required(true)
+                        .index(1)
+                        .help("the private key of the wallet")
+                )
+        )
+        .subcommand(
             Command::new("set")
                 .about("Sets the default values for the bot in the exchange")
                 .subcommand(
@@ -19,7 +29,38 @@ pub fn command() -> Command {
                                 .help("Default leverage value")
                         )
                 )
+                .subcommand(
+                    Command::new("da")
+                        .about("Sets the default asset")
+                        .arg(
+                            Arg::new("asset")
+                                .index(1)
+                                .required(true)
+                                .help("Default asset value")
+                        )
+                )
+                .subcommand(
+                    Command::new("ds")
+                        .about("Sets the default size")
+                        .arg(
+                            Arg::new("size")
+                                .index(1)
+                                .required(true)
+                                .help("Default size value")
+                        )
+                )
+                .subcommand(
+                Command::new("dm")
+                        .about("Sets the default margin")
+                        .arg(
+                            Arg::new("margin")
+                                .index(1)
+                                .required(true)
+                                .help("Default margin value either i or c")
+                        )   
+                )
             )
+
         .subcommand(
             Command::new("tp")
                 .about("Takes profit on open order as a market order")

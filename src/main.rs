@@ -1,8 +1,14 @@
-use hl::{settings::Settings, startup::startup};
+use hl::{startup::startup, types::Config};
 
 #[tokio::main]
 async fn main() {
-    let settings = Settings::new().expect("Failed to load config");
+    let mut config = match Config::new() {
+        Ok(config) => config,
+        Err(err) => {
+            println!("---\nFailed to load config: {}\n---", err);
+            return;
+        }
+    };
 
-    startup(&settings).await;
+    startup(&mut config).await;
 }
