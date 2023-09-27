@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ethers::signers::{LocalWallet, Signer};
+use ethers::{signers::{LocalWallet, Signer}, types::Chain::{Dev, ArbitrumGoerli, Arbitrum}};
 use hyperliquid::{Hyperliquid, Info, Exchange, types::{exchange::{request::{Chain, OrderType, Trigger, OrderRequest, Limit, Tif, TpSl }, response::{Response, Status}}, info::response::Side}, utils::{parse_price, parse_size}};
 
 use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair, Config}, helpers::asset_ctx};
@@ -11,8 +11,15 @@ use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, Margi
 pub async fn startup(config: &mut Config) {
 
 
-    let info: Info = Hyperliquid::new(Chain::Dev);
-    let exchange: Exchange = Hyperliquid::new(Chain::Dev);
+    let chain =  match config.chain {
+        Dev => Chain::Dev,
+        ArbitrumGoerli => Chain::ArbitrumGoerli,
+        Arbitrum => Chain::Arbitrum    ,
+        _ => return println!("{}", format!("Chain {:?} not supported", config.chain)),
+    };
+
+    let info: Info = Hyperliquid::new(chain);
+    let exchange: Exchange = Hyperliquid::new(chain);
 
     let metadata = info.metadata().await.expect("Failed to fetch metadata");
 
@@ -25,7 +32,6 @@ pub async fn startup(config: &mut Config) {
 
     match command().get_matches().subcommand() {
         Some(("login", matches)) => {
-
             let private_key = matches
                 .get_one::<String>("private_key")
                 .expect("Private key is required").to_string();
@@ -47,6 +53,32 @@ pub async fn startup(config: &mut Config) {
                 Err(err) => println!("Failed to save wallet: {:#?}", err),
             }
         }
+
+        Some(("chain", matches)) => {
+            let chain = matches
+                .get_one::<String>("chain")
+                .expect("Chain is required");
+
+            let chain = match chain.to_lowercase().as_str() {
+                "dev" => Dev,
+                "arbitrum-goerli" => ArbitrumGoerli,
+                "arbitrum" => Arbitrum,
+                _ => {
+                    println!("Invalid chain, expected 'dev', 'arbitrum-goerli' or 'arbitrum'");
+                    return;
+                }
+            };
+
+            println!("Setting default chain to {}\n", chain);
+
+            config.chain = chain;
+
+            match config.save() {
+                Ok(_) => println!("Chain successfully saved ✔️\n---"),
+                Err(err) => println!("Failed to save chain: {:#?}", err),
+            }
+        }
+
         Some(("set", matches)) => match matches.subcommand() {
             Some(("dl", matches)) => {
                 let wallet = Arc::new(

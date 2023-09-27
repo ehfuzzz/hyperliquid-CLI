@@ -13,7 +13,17 @@ pub fn command() -> Command {
                     Arg::new("private_key")
                         .required(true)
                         .index(1)
-                        .help("the private key of the wallet")
+                        .help("The private key of the wallet")
+                )
+        )
+        .subcommand(
+            Command::new("chain")
+                .about("Sets the chain to be used for trading")
+                .arg(
+                    Arg::new("chain")
+                        .required(true)
+                        .index(1)
+                        .help("The chain to be used for trading")
                 )
         )
         .subcommand(

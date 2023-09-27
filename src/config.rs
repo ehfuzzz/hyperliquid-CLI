@@ -1,3 +1,4 @@
+use ethers::types::Chain;
 use home::home_dir;
 
 use crate::types::{Config, MarginType};
@@ -72,6 +73,7 @@ impl Default for Config {
             default_margin: MarginType::Isolated,
             default_asset: String::new(),
             default_size: String::new(),
+            chain: Chain::Dev,
         }
     }
 }

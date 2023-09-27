@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use ethers::types::Chain;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -179,4 +180,5 @@ pub struct Config {
     pub default_margin: MarginType,
     pub default_asset: String,
     pub default_size: String,
+    pub chain: Chain,
 }
