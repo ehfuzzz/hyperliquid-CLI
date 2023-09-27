@@ -4,20 +4,21 @@ use std::time::Duration;
 
 use ethers::signers::{LocalWallet, Signer};
 use hyperliquid::{Hyperliquid, Info, Exchange, types::{exchange::{request::{Chain, OrderType, Trigger, OrderRequest, Limit, Tif, TpSl }, response::{Response, Status}}, info::response::Side}, utils::{parse_price, parse_size}};
-use secrecy::ExposeSecret;
 
-use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair}, helpers::asset_ctx};
+use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair, Config}, helpers::asset_ctx};
 
-use crate::settings::Settings;
 
-pub async fn startup(config: &Settings) {
+pub async fn startup(config: &Config) {
     let wallet = Arc::new(
-        config
-            .account
+        match config
             .private_key
-            .expose_secret()
-            .parse::<LocalWallet>()
-            .expect("Failed to parse private key"),
+            .parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            }
     );
 
     let info: Info = Hyperliquid::new(Chain::Dev);
@@ -51,7 +52,7 @@ pub async fn startup(config: &Settings) {
 
                 for (symbol, v) in &assets {
                     println!("Updating leverage for {} to {}%\n", symbol, leverage);
-                    let is_cross = if let MarginType::Cross = config.default_margin.value {
+                    let is_cross = if let MarginType::Cross = config.default_margin {
                         true
                     } else {
                         false
@@ -82,7 +83,7 @@ pub async fn startup(config: &Settings) {
 
             let symbol = matches
                 .get_one::<String>("asset")
-                .unwrap_or(&config.default_asset.value);
+                .unwrap_or(&config.default_asset);
 
             let tp: TPSL = matches
                 .get_one::<String>("tp")
@@ -232,7 +233,7 @@ pub async fn startup(config: &Settings) {
 
             let symbol = matches
                 .get_one::<String>("asset")
-                .unwrap_or(&config.default_asset.value);
+                .unwrap_or(&config.default_asset);
 
             let sl: TPSL = matches
                 .get_one::<String>("sl")
@@ -372,14 +373,14 @@ pub async fn startup(config: &Settings) {
         Some(("buy", matches)) => {
             let order_size: OrderSize = matches
                 .get_one::<String>("size")
-                .unwrap_or(&config.default_size.value)
+                .unwrap_or(&config.default_size)
                 .as_str()
                 .try_into()
                 .expect("Failed to parse order size");
 
             let symbol = matches
                 .get_one::<String>("asset")
-                .unwrap_or(&config.default_asset.value);
+                .unwrap_or(&config.default_asset);
 
             let limit_price: LimitPrice = matches
                 .get_one::<String>("price")
@@ -402,7 +403,7 @@ pub async fn startup(config: &Settings) {
 
         
             // ----------------------------------------------
-let asset_ctxs = info
+        let asset_ctxs = info
                 .contexts()
                 .await
                 .expect("Failed to fetch asset ctxs");
@@ -438,7 +439,7 @@ let asset_ctxs = info
                         .await
                         .expect("Failed to fetch balance");
 
-                    let balance = match config.default_margin.value {
+                    let balance = match config.default_margin {
                         MarginType::Cross => state.cross_margin_summary.account_value,
                         MarginType::Isolated => state.margin_summary.account_value,
                     };
@@ -656,14 +657,14 @@ let asset_ctxs = info
         Some(("sell", matches)) => {
             let order_size: OrderSize = matches
                 .get_one::<String>("size")
-                .unwrap_or(&config.default_size.value)
+                .unwrap_or(&config.default_size)
                 .as_str()
                 .try_into()
                 .expect("Failed to parse order size");
 
             let symbol = matches
                 .get_one::<String>("asset")
-                .unwrap_or(&config.default_asset.value);
+                .unwrap_or(&config.default_asset);
 
             let limit_price: LimitPrice = matches
                 .get_one::<String>("price")
@@ -721,7 +722,7 @@ let asset_ctxs = info
                         .await
                         .expect("Failed to fetch balance");
 
-                    let balance = match config.default_margin.value {
+                    let balance = match config.default_margin {
                         MarginType::Cross => state.cross_margin_summary.account_value,
                         MarginType::Isolated => state.margin_summary.account_value,
                     };

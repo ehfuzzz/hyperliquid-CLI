@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum OrderSize {
@@ -114,7 +114,6 @@ impl TryFrom<&str> for LimitPrice {
     }
 }
 
-#[derive(Deserialize)]
 pub struct Pair {
     pub base: String,
     pub quote: String,
@@ -137,7 +136,7 @@ impl TryFrom<&str> for Pair {
 }
 
 pub enum TpSl {
-    Percent(f64),   // 10%
+    Percent(f64),  // 10%
     Fixed(f64),    // 1990
     Absolute(f64), // +/- 10
 }
@@ -167,18 +166,28 @@ impl TryFrom<&str> for TpSl {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum MarginType {
     Cross,
     Isolated,
 }
 
-impl ToString for MarginType {
-    fn to_string(&self) -> String {
-        match self {
-            MarginType::Cross => "cross".to_string(),
-            MarginType::Isolated => "isolated".to_string(),
+#[derive(Serialize, Deserialize)]
+pub struct Config {
+    pub private_key: String,
+    pub default_margin: MarginType,
+    pub default_asset: String,
+    pub default_size: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            private_key: String::new(),
+            default_margin: MarginType::Isolated,
+            default_asset: String::new(),
+            default_size: String::new(),
         }
     }
 }
