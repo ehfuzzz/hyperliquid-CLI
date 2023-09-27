@@ -1,4 +1,4 @@
-use hyperliquid::{settings::Settings, startup::startup};
+use hl::{settings::Settings, startup::startup};
 
 #[tokio::main]
 async fn main() {

@@ -20,7 +20,7 @@ pub struct Exchange {
 impl Exchange {
     async fn signature(&self, connection_id: H256) -> Signature {
         let payload = l1::Agent {
-            source: "a".to_string(),
+            source: "b".to_string(),
             connection_id,
         };
 

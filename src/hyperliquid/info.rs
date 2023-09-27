@@ -45,7 +45,7 @@ impl Info {
             .universe
             .iter()
             .position(|a| a.name.to_uppercase() == asset.to_uppercase())
-            .unwrap();
+            .expect("Asset not found");
 
         let ctxs = match asset_ctxs.get(1) {
             Some(AssetCtx::Ctx(ctxs)) => ctxs,
