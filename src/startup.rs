@@ -8,7 +8,7 @@ use hyperliquid::{Hyperliquid, Info, Exchange, types::{exchange::{request::{Chai
 use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair, Config}, helpers::asset_ctx};
 
 
-pub async fn startup(config: &Config) {
+pub async fn startup(config: &mut Config) {
     let wallet = Arc::new(
         match config
             .private_key
@@ -68,10 +68,28 @@ pub async fn startup(config: &Config) {
                     
                 }
             }
+            Some(("da", matches)) => {
+                let asset = matches
+                .get_one::<String>("asset")
+                .expect("Asset is required");
+
+                println!("Setting default asset to {}\n", asset);
+
+                config.default_asset = asset.to_string();
+
+                match config.save() {
+                    Ok(_) => println!("Successfully updated default asset ✔️\n---"),
+                    Err(err) => println!("Failed to update default asset: {:#?}", err),
+                }
+
+                
+
+            }
             _ => {
                 println!("Invalid command");
                 return;
             }
+
         },
         Some(("tp", matches)) => {
             let sz: OrderSize = matches
