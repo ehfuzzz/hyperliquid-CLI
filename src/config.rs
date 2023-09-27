@@ -1,3 +1,5 @@
+use std::env;
+
 use home::home_dir;
 
 use crate::types::Config;
@@ -31,15 +33,15 @@ impl Config {
 
         // validate config
         if config.private_key.is_empty() {
-            return Err("private_key is required".into());
+            return Err(format!("Seems like you forgot to set your private key. Set by running `{} login <private key>`", env!("CARGO_PKG_NAME")));
         }
 
         if config.default_asset.is_empty() {
-            return Err("default_asset is required".into());
+            return Err(format!("Seems like you forgot to set your default asset. Set by running `{} set da <default trading asset>`", env!("CARGO_PKG_NAME")));
         }
 
         if config.default_size.is_empty() {
-            return Err("default_size is required".into());
+            return Err(format!("Seems like you forgot to set your default size. Set by running `{} set ds <default trading size>`", env!("CARGO_PKG_NAME")));
         }
 
         Ok(config)
