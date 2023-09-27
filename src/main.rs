@@ -2,7 +2,7 @@ use hl::{startup::startup, types::Config};
 
 #[tokio::main]
 async fn main() {
-    let config = match Config::new() {
+    let mut config = match Config::new() {
         Ok(config) => config,
         Err(err) => {
             println!("---\nFailed to load config: {}\n---", err);
@@ -10,5 +10,5 @@ async fn main() {
         }
     };
 
-    startup(&config).await;
+    startup(&mut config).await;
 }

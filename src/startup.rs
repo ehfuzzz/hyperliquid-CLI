@@ -8,18 +8,8 @@ use hyperliquid::{Hyperliquid, Info, Exchange, types::{exchange::{request::{Chai
 use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair, Config}, helpers::asset_ctx};
 
 
-pub async fn startup(config: &Config) {
-    let wallet = Arc::new(
-        match config
-            .private_key
-            .parse::<LocalWallet>() {
-                Ok(wallet) => wallet,
-                Err(_) => {
-                    println!("Error: Invalid private key");
-                    return;
-                }
-            }
-    );
+pub async fn startup(config: &mut Config) {
+
 
     let info: Info = Hyperliquid::new(Chain::Dev);
     let exchange: Exchange = Hyperliquid::new(Chain::Dev);
@@ -34,8 +24,43 @@ pub async fn startup(config: &Config) {
         .collect::<HashMap<String, (u32, u32)>>();
 
     match command().get_matches().subcommand() {
+        Some(("login", matches)) => {
+
+            let private_key = matches
+                .get_one::<String>("private_key")
+                .expect("Private key is required").to_string();
+
+            let wallet = match private_key.parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            };
+
+            println!("Setting default wallet to {}\n", wallet.address());
+
+            config.private_key = private_key;
+
+            match config.save() {
+                Ok(_) => println!("Wallet successfully saved ✔️\n---"),
+                Err(err) => println!("Failed to save wallet: {:#?}", err),
+            }
+        }
         Some(("set", matches)) => match matches.subcommand() {
             Some(("dl", matches)) => {
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
+
                 let leverage = matches
                     .get_one::<String>("leverage")
                     .expect("Leverage is required")
@@ -50,28 +75,105 @@ pub async fn startup(config: &Config) {
 
                 // loop through all assets and update leverage
 
-                for (symbol, v) in &assets {
-                    println!("Updating leverage for {} to {}%\n", symbol, leverage);
+                let symbols = assets.iter().map(|(symbol, _)| symbol.as_str()).collect::<Vec<_>>();
+
+                println!("---\nUpdating leverage for {} to {}%...\n---", symbols.join(","), leverage);
+                for (_, v) in &assets {
                     let is_cross = if let MarginType::Cross = config.default_margin {
                         true
                     } else {
                         false
                     };
-
                     match  exchange.update_leverage(wallet.clone(),leverage, v.1, is_cross).await {
                         Ok(_) => {
-                            println!("Successfully updated leverage for {} ✔️\n---", symbol);
                         }
                         Err(err) => println!("Failed to update leverage: {:#?}", err),
                     }
-
                     
                 }
+
+                println!("Successfully updated leverage for all assets ✔️\n---");
+
+            }
+            Some(("ds", matches)) => {
+                let _sz: OrderSize = match matches
+                .get_one::<String>("size")
+                .expect("Order size is required")
+                .as_str()
+                .try_into() {
+                    Ok(sz) => sz,
+                    Err(err) => {
+                        println!("Failed to parse order size: {:#?}", err);
+                        return;
+                    }
+                };
+
+
+                let sz = matches
+                .get_one::<String>("size")
+                .expect("Order size is required").trim().to_string();
+
+
+                println!("Setting default size to {}\n", sz);
+
+                config.default_size = sz;
+                match config.save() {
+                    Ok(_) => println!("Successfully updated default size ✔️\n---"),
+                    Err(err) => println!("Failed to update default size: {:#?}", err),
+                }
+            }
+
+            Some(("dm", matches)) => {
+                let margin = matches
+                    .get_one::<String>("margin")
+                    .expect("Margin is required");
+
+                let margin = match margin.to_lowercase().as_str() {
+                    "c" => MarginType::Cross,
+                    "i" => MarginType::Isolated,
+                    _ => {
+                        println!("Invalid margin type, expected 'c' or 'i'");
+                        return;
+                    }
+                };
+
+                println!("Setting default margin to {}\n", if let MarginType::Cross = margin {
+                    "Cross"
+                } else {
+                    "Isolated"
+                });
+
+                config.default_margin = margin;
+
+                match config.save() {
+                    Ok(_) => println!("Successfully updated default asset ✔️\n---"),
+                    Err(err) => println!("Failed to update default asset: {:#?}", err),
+                }
+
+            }
+
+            Some(("da", matches)) => {
+                let asset = matches
+                .get_one::<String>("asset")
+                .expect("Asset is required");
+
+                println!("Setting default asset to {}\n", asset);
+
+                config.default_asset = asset.to_string();
+
+                match config.save() {
+                    Ok(_) => println!("Successfully updated default asset ✔️\n---"),
+                    Err(err) => println!("Failed to update default asset: {:#?}", err),
+                }
+
+                
+
             }
             _ => {
                 println!("Invalid command");
                 return;
             }
+
         },
         Some(("tp", matches)) => {
             let sz: OrderSize = matches
@@ -94,8 +196,21 @@ pub async fn startup(config: &Config) {
 
             // ----------------------------------------------
 
+            let wallet = Arc::new(
+                match config
+                    .private_key
+                    .parse::<LocalWallet>() {
+                        Ok(wallet) => wallet,
+                        Err(_) => {
+                            println!("Error: Invalid private key");
+                            return;
+                        }
+                    }
+            );
+
             let (sz, entry_price, is_buy) = match sz {
                 OrderSize::Percent(sz) => {
+
                     let state = info
                         .user_state(wallet.address())
                         .await
@@ -241,6 +356,18 @@ pub async fn startup(config: &Config) {
                 .as_str()
                 .try_into()
                 .expect("Failed to parse stop loss price");
+
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
 
             let (sz, entry_price, is_buy) = match sz {
                 OrderSize::Percent(sz) => {
@@ -401,7 +528,17 @@ pub async fn startup(config: &Config) {
                 )
             });
 
-        
+            let wallet = Arc::new(
+                match config
+                    .private_key
+                    .parse::<LocalWallet>() {
+                        Ok(wallet) => wallet,
+                        Err(_) => {
+                            println!("Error: Invalid private key");
+                            return;
+                        }
+                    }
+            );
             // ----------------------------------------------
         let asset_ctxs = info
                 .contexts()
@@ -685,6 +822,17 @@ pub async fn startup(config: &Config) {
                 )
             });
 
+            let wallet = Arc::new(
+                match config
+                    .private_key
+                    .parse::<LocalWallet>() {
+                        Ok(wallet) => wallet,
+                        Err(_) => {
+                            println!("Error: Invalid private key");
+                            return;
+                        }
+                    }
+            );
             // ----------------------------------------------
             let asset_ctxs = info
                 .contexts()
@@ -960,6 +1108,17 @@ pub async fn startup(config: &Config) {
                     .parse::<f64>()
                     .expect("Failed to parse upper price bracket");
 
+                    let wallet = Arc::new(
+                        match config
+                            .private_key
+                            .parse::<LocalWallet>() {
+                                Ok(wallet) => wallet,
+                                Err(_) => {
+                                    println!("Error: Invalid private key");
+                                    return;
+                                }
+                            }
+                    );
                 // ----------------------------------------------
 
                 let asset_ctxs = info
@@ -1059,6 +1218,18 @@ pub async fn startup(config: &Config) {
                     .as_str()
                     .parse::<f64>()
                     .expect("Failed to parse upper price bracket");
+
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
                 //------------------------------------
 
                 let asset_ctxs = info
@@ -1075,6 +1246,8 @@ pub async fn startup(config: &Config) {
                 let (sz_decimals, asset) = *assets
                     .get(&symbol.to_uppercase())
                     .expect("Failed to find asset");
+
+                
 
                 let interval = (upper - lower) / (sz_per_interval.interval - 1) as f64;
 
@@ -1156,6 +1329,19 @@ pub async fn startup(config: &Config) {
                     .as_str()
                     .try_into().expect(
                         "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
+                    );
+
+
+                    let wallet = Arc::new(
+                        match config
+                            .private_key
+                            .parse::<LocalWallet>() {
+                                Ok(wallet) => wallet,
+                                Err(_) => {
+                                    println!("Error: Invalid private key");
+                                    return;
+                                }
+                            }
                     );
 
                     let sz = match sz {
@@ -1253,6 +1439,17 @@ pub async fn startup(config: &Config) {
                     .try_into().expect(
                         "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
+                    let wallet = Arc::new(
+                        match config
+                            .private_key
+                            .parse::<LocalWallet>() {
+                                Ok(wallet) => wallet,
+                                Err(_) => {
+                                    println!("Error: Invalid private key");
+                                    return;
+                                }
+                            }
+                    );
 
                     let sz = match sz {
                         OrderSize::Absolute(sz) => sz,
@@ -1339,6 +1536,18 @@ pub async fn startup(config: &Config) {
 
         Some(("view", matches)) => match matches.subcommand_name() {
             Some("upnl") => {
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
+
                 let state = info
                     .user_state(wallet.address())
                     .await
@@ -1359,6 +1568,18 @@ pub async fn startup(config: &Config) {
             }
 
             Some("wallet") => {
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
+
                 let state = info
                     .user_state(wallet.address())
                     .await
@@ -1387,6 +1608,18 @@ pub async fn startup(config: &Config) {
                 println!("Total Raw Usd : {}", cms.total_raw_usd);
             }
             Some("unfilled") => {
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
+
                 let unfilled_orders = info.open_orders(wallet.address()).await.unwrap();
                 let repeat = 35;
                 for order in unfilled_orders.iter() {
@@ -1402,6 +1635,17 @@ pub async fn startup(config: &Config) {
                 println!("\nTotal Unfilled Orders: {}", unfilled_orders.len());
             }
             Some("open") => {
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
                 let state = info.user_state(wallet.address()).await.unwrap();
 
                 let open_positions = state
@@ -1486,6 +1730,18 @@ pub async fn startup(config: &Config) {
                         "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                     )
                 });
+
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
 
                 // ----------------------------------------------
                 let slippage = 3.0 / 100.0;
@@ -2085,6 +2341,17 @@ pub async fn startup(config: &Config) {
                         "Invalid take profit value, expected a number or a percentage value e.g 10%",
                     )
                 });
+                let wallet = Arc::new(
+                    match config
+                        .private_key
+                        .parse::<LocalWallet>() {
+                            Ok(wallet) => wallet,
+                            Err(_) => {
+                                println!("Error: Invalid private key");
+                                return;
+                            }
+                        }
+                );
 
                 // ----------------------------------------------
                 let slippage = 3.0 / 100.0;

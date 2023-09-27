@@ -8,16 +8,13 @@ pub fn command() -> Command {
         .about("A CLI bot to interact with the hyperliquid exchange")
         .subcommand(
             Command::new("login")
-                .about("Logs in to the exchange")
+                .about("Sets wallet to be used for trading")
                 .arg(
                     Arg::new("private_key")
                         .required(true)
                         .index(1)
                         .help("the private key of the wallet")
                 )
-
-
-  
         )
         .subcommand(
             Command::new("set")
@@ -62,9 +59,6 @@ pub fn command() -> Command {
                                 .help("Default margin value either i or c")
                         )   
                 )
-
-
-                
             )
 
         .subcommand(
