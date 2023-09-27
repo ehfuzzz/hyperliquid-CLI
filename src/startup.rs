@@ -68,6 +68,63 @@ pub async fn startup(config: &mut Config) {
                     
                 }
             }
+            Some(("ds", matches)) => {
+                let _sz: OrderSize = match matches
+                .get_one::<String>("size")
+                .expect("Order size is required")
+                .as_str()
+                .try_into() {
+                    Ok(sz) => sz,
+                    Err(err) => {
+                        println!("Failed to parse order size: {:#?}", err);
+                        return;
+                    }
+                };
+
+
+                let sz = matches
+                .get_one::<String>("size")
+                .expect("Order size is required").trim().to_string();
+
+
+                println!("Setting default size to {}\n", sz);
+
+                config.default_size = sz;
+                match config.save() {
+                    Ok(_) => println!("Successfully updated default size ✔️\n---"),
+                    Err(err) => println!("Failed to update default size: {:#?}", err),
+                }
+            }
+
+            Some(("dm", matches)) => {
+                let margin = matches
+                    .get_one::<String>("margin")
+                    .expect("Margin is required");
+
+                let margin = match margin.to_lowercase().as_str() {
+                    "c" => MarginType::Cross,
+                    "i" => MarginType::Isolated,
+                    _ => {
+                        println!("Invalid margin type");
+                        return;
+                    }
+                };
+
+                println!("Setting default margin to {}\n", if let MarginType::Cross = margin {
+                    "Cross"
+                } else {
+                    "Isolated"
+                });
+
+                config.default_margin = margin;
+
+                match config.save() {
+                    Ok(_) => println!("Successfully updated default asset ✔️\n---"),
+                    Err(err) => println!("Failed to update default asset: {:#?}", err),
+                }
+
+            }
+
             Some(("da", matches)) => {
                 let asset = matches
                 .get_one::<String>("asset")
