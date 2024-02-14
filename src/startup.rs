@@ -323,6 +323,7 @@ pub async fn startup(config: &mut Config) {
                 sz: parse_size(sz, sz_decimals),
                 reduce_only: true,
                 order_type,
+                cloid: None,
             };
 
             println!("{}", "---".repeat(20));
@@ -334,7 +335,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Entry price: {}", entry_price);
 
-            match exchange.place_order(wallet.clone(),order, None).await {
+            match exchange.place_order(wallet.clone(),vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -480,6 +481,7 @@ pub async fn startup(config: &mut Config) {
                 sz: parse_size(sz, sz_decimals),
                 reduce_only: true,
                 order_type,
+                cloid: None,
             };
 
             println!("{}", "---".repeat(20));
@@ -492,7 +494,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Entry price: {}", entry_price);
 
-            match exchange.place_order(wallet.clone(),order, None).await {
+            match exchange.place_order(wallet.clone(),vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -634,6 +636,7 @@ pub async fn startup(config: &mut Config) {
                 sz: parse_size(sz, sz_decimals),
                 reduce_only: false,
                 order_type,
+                cloid: None,
             };
 
             let limit_price = match &order.order_type {
@@ -650,7 +653,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Market price: {}\n", market_price);
 
-            match exchange.place_order(wallet.clone(), order, None).await {
+            match exchange.place_order(wallet.clone(), vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -703,6 +706,7 @@ pub async fn startup(config: &mut Config) {
                     sz: parse_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
+                    cloid: None,
                 };
 
                 println!("{}", "---".repeat(20));
@@ -715,7 +719,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(),vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -774,6 +778,7 @@ pub async fn startup(config: &mut Config) {
                     sz: parse_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
+                    cloid: None,
                 };
 
                 println!("{}", "---".repeat(20));
@@ -786,7 +791,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(),vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -929,6 +934,7 @@ pub async fn startup(config: &mut Config) {
                 sz: parse_size(sz, sz_decimals),
                 reduce_only: false,
                 order_type,
+                cloid: None,
             };
 
             let limit_price = match &order.order_type {
@@ -945,7 +951,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Market price: {}\n", market_price);
 
-            match exchange.place_order(wallet.clone(),order, None).await {
+            match exchange.place_order(wallet.clone(),vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -996,6 +1002,7 @@ pub async fn startup(config: &mut Config) {
                     sz: parse_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
+                    cloid: None,
                 };
 
                 println!("{}", "---".repeat(20));
@@ -1008,7 +1015,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(),vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -1066,6 +1073,7 @@ pub async fn startup(config: &mut Config) {
                     sz: parse_size(sz, sz_decimals),
                     reduce_only: true,
                     order_type,
+                    cloid: None,
                 };
 
                 println!("{}", "---".repeat(20));
@@ -1078,7 +1086,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(),vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -1194,9 +1202,10 @@ pub async fn startup(config: &mut Config) {
                         sz: parse_size(sz, sz_decimals),
                         reduce_only: false,
                         order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
+                        cloid: None,
                     };
 
-                    match exchange.place_order(wallet.clone(),order, None).await {
+                    match exchange.place_order(wallet.clone(),vec![order], None).await {
                         Ok(order) => match order {
                             Response::Err(err) => {
                                 println!("{:#?}", err);
@@ -1306,9 +1315,10 @@ pub async fn startup(config: &mut Config) {
                         sz: parse_size(sz, sz_decimals),
                         reduce_only: false,
                         order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
+                        cloid: None,
                     };
 
-                    match exchange.place_order(wallet.clone(),order, None).await {
+                    match exchange.place_order(wallet.clone(),vec![order], None).await {
                         Ok(order) => match order {
                             Response::Err(err) => {
                                 println!("{:#?}", err);
@@ -1427,9 +1437,10 @@ pub async fn startup(config: &mut Config) {
                             sz: parse_size(sz, sz_decimals),
                             reduce_only: false,
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                            cloid: None,
                         };
 
-                        match exchange.place_order(wallet.clone(),order, None).await {
+                        match exchange.place_order(wallet.clone(),vec![order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -1534,9 +1545,10 @@ pub async fn startup(config: &mut Config) {
                             sz: parse_size(sz, sz_decimals),
                             reduce_only: false,
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                            cloid: None,
                         };
 
-                        match exchange.place_order(wallet.clone(),order, None).await {
+                        match exchange.place_order(wallet.clone(),vec![order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -1816,6 +1828,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -1829,7 +1842,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Size in USD: {}", parse_size(base_sz, base_sz_decimals));
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -1890,6 +1903,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(sz, quote_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -1906,7 +1920,7 @@ pub async fn startup(config: &mut Config) {
                                 );
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2014,6 +2028,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(base_sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2031,7 +2046,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", base_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2073,6 +2088,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(quote_sz, quote_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2090,7 +2106,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", quote_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2179,6 +2195,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     let exit_short_order = OrderRequest {
@@ -2190,6 +2207,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(quote_sz, quote_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     break (exit_long_order, exit_short_order, current_ratio);
@@ -2209,6 +2227,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     let exit_short_order = OrderRequest {
@@ -2220,6 +2239,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(quote_sz, quote_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     break (exit_long_order, exit_short_order, current_ratio);
@@ -2249,7 +2269,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_long_order, None).await {
+                        match exchange.place_order(wallet.clone(),vec![exit_long_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2294,7 +2314,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_short_order, None).await {
+                        match exchange.place_order(wallet.clone(),vec![exit_short_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2426,6 +2446,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2439,7 +2460,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Size in USD: {}", parse_size(base_sz, base_sz_decimals));
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2500,6 +2521,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(sz, quote_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2516,7 +2538,7 @@ pub async fn startup(config: &mut Config) {
                                 );
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2625,6 +2647,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(base_sz, base_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2642,7 +2665,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", base_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2685,6 +2708,7 @@ pub async fn startup(config: &mut Config) {
                                     sz: parse_size(quote_sz, quote_sz_decimals),
                                     reduce_only: false,
                                     order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                    cloid: None,
                                 };
 
                                 println!("{}", "---".repeat(20));
@@ -2702,7 +2726,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", quote_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(),vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2788,6 +2812,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     let exit_long_order = OrderRequest {
@@ -2799,6 +2824,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(quote_sz, quote_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     break (exit_short_order, exit_long_order, current_ratio);
@@ -2818,6 +2844,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     let exit_long_order = OrderRequest {
@@ -2829,6 +2856,7 @@ pub async fn startup(config: &mut Config) {
                                         sz: parse_size(quote_sz, quote_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
+                                        cloid: None,
                                     };
 
                                     break (exit_short_order, exit_long_order, current_ratio);
@@ -2858,7 +2886,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_short_order, None).await {
+                        match exchange.place_order(wallet.clone(),vec![exit_short_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2903,7 +2931,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_long_order, None).await {
+                        match exchange.place_order(wallet.clone(),vec![exit_long_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
