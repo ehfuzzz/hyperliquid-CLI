@@ -95,6 +95,14 @@ pub enum LimitPrice {
     Absolute(f64),
 }
 
+impl LimitPrice {
+    pub fn is_zero(&self) -> bool {
+        match self {
+            LimitPrice::Absolute(value) => *value == 0.0,
+        }
+    }
+}
+
 impl TryFrom<&str> for LimitPrice {
     type Error = String;
 

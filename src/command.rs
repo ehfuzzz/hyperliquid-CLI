@@ -1,5 +1,5 @@
 //using version 2.33 not the latest one
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 
 pub fn command() -> Command {
     Command::new(env!("CARGO_PKG_NAME"))
@@ -130,6 +130,7 @@ pub fn command() -> Command {
                     Arg::new("size")
                         .help("size of the order e.g, $100 ")
                         .long("size")
+                        .short('s')
                 )
                 .arg(
                     Arg::new("asset")
@@ -137,11 +138,13 @@ pub fn command() -> Command {
                             "Asset symbol e.g ETH, SOL, BTC, optional if default asset is defined"
                         )
                         .long("asset")
+                        .short('a')
                 )
                 .arg(
                     Arg::new("price")
                         .help("Limit price e.g ., @1900")
                         .long("price")
+                        .short('p')
                 )
                 .arg(
                     Arg::new("tp")
@@ -152,6 +155,13 @@ pub fn command() -> Command {
                     Arg::new("sl")
                         .help("Stop loss value")
                         .long("sl")
+                )
+                .arg(
+                    Arg::new("chase")
+                    .short('c')
+                    .long("chase")
+                    .action(ArgAction::SetTrue)
+                    .help("Chase market price")
                 )
         )
         .subcommand(
@@ -161,6 +171,7 @@ pub fn command() -> Command {
                     Arg::new("size")
                         .help("size of the order e.g ., $100 ")
                         .long("size")
+                        .short('s')
                 )
                 .arg(
                     Arg::new("asset")
@@ -168,11 +179,13 @@ pub fn command() -> Command {
                             "Asset symbol e.g ETH, SOL, BTC, optional if default asset is defined"
                         )
                         .long("asset")
+                        .short('a')
                 )
                 .arg(
                     Arg::new("price")
                         .help("Limit price e.g ,. @1900")
                         .long("price")
+                        .short('p')
                 )
                 .arg(
                     Arg::new("tp")
@@ -183,6 +196,13 @@ pub fn command() -> Command {
                     Arg::new("sl")
                         .help("Stop loss value")
                         .long("sl")
+                )
+                .arg(
+                    Arg::new("chase")
+                    .short('c')
+                    .long("chase")
+                    .action(ArgAction::SetTrue)
+                    .help("Chase market price")
                 )
         )
         .subcommand(
@@ -299,6 +319,7 @@ pub fn command() -> Command {
                             Arg::new("price")
                                 .required(false)
                                 .long("price")
+                                .short('p')
                                 .help("Limit price if Commandlicable")
                         )
                         .arg(
@@ -332,6 +353,7 @@ pub fn command() -> Command {
                         .arg(
                             Arg::new("price")
                                 .long("price")
+                                .short('p')
                                 .required(false)
                                 .help("Limit price if Commandlicable")
                         )
