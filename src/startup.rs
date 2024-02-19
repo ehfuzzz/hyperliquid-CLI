@@ -1,10 +1,11 @@
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ethers::{signers::{LocalWallet, Signer}, types::Chain::{Dev, ArbitrumGoerli, Arbitrum}};
-use hyperliquid::{types::{exchange::{request::{Chain, Limit, OrderRequest, ModifyRequest,OrderType, Tif, TpSl, Trigger }, response::{Response, Status}}, info::response::Side}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
+use ethers::{signers::{LocalWallet, Signer}, types::Chain};
+use hyperliquid::{types::{exchange::{request::{ Limit, OrderRequest, OrderType, Tif, TpSl, Trigger }, response::{Response, Status}}, info::response::Side}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
 
+use crate::helpers::limit_chase;
 use crate::{command::command, helpers::asset_ctx, types::{Config, LimitPrice, MarginType, OrderSize, Pair, SzPerInterval, TpSl as TPSL, TwapInterval}};
 
 
@@ -12,9 +13,9 @@ pub async fn startup(config: &mut Config) {
 
 
     let chain =  match config.chain {
-        Dev => Chain::Dev,
-        ArbitrumGoerli => Chain::ArbitrumGoerli,
-        Arbitrum => Chain::Arbitrum    ,
+        Chain::Dev => Chain::Dev,
+        Chain::ArbitrumGoerli => Chain::ArbitrumGoerli,
+        Chain::Arbitrum => Chain::Arbitrum,
         _ => return println!("{}", format!("Chain {:?} not supported", config.chain)),
     };
 
@@ -60,9 +61,9 @@ pub async fn startup(config: &mut Config) {
                 .expect("Chain is required");
 
             let chain = match chain.to_lowercase().as_str() {
-                "dev" => Dev,
-                "arbitrum-goerli" => ArbitrumGoerli,
-                "arbitrum" => Arbitrum,
+                "dev" => Chain::Dev,
+                "arbitrum-goerli" => Chain::ArbitrumGoerli,
+                "arbitrum" => Chain::Arbitrum,
                 _ => {
                     println!("Invalid chain, expected 'dev', 'arbitrum-goerli' or 'arbitrum'");
                     return;
@@ -838,99 +839,10 @@ pub async fn startup(config: &mut Config) {
                     }
                 }
             }
-        
-            if chase && oid.is_some() {
-                let mut oid = oid.unwrap();
 
-                const MAX_CHASE_COUNT: i32 = 100;
-
-                const MAX_CHASE_DURATION: u64 = 60;
-
-                const CHASE_INTERVAL_IN_SEC:u64 = 5;
-
-                const TRAIL_PCT: f64 = 1.0 / 100.0;
-
-                let start  = Instant::now();
-
-                let mut loop_count = 1;
-
-                loop {
-
-                    // Give up limit chasing and place a market order if max chase count is exceeded and the order is still resting or if a certain time has passed
-                    let is_market =  loop_count > MAX_CHASE_COUNT  || start.elapsed().as_secs() > MAX_CHASE_DURATION;
-                
-                    let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
-            
-                    let ctx = asset_ctx(&asset_ctxs, symbol)
-                        .expect("Failed to fetch asset ctxs")
-                        .expect("Failed to find asset");
-            
-                    let market_price = ctx.mark_px.parse::<f64>().unwrap();
-            
-                    let limit_px = parse_price(market_price * if is_market { 1.0 + SLIPPAGE } else {1.0 - TRAIL_PCT });
-
-                    println!("---\nChasing order with Limit price: {}, Market price: {}, Chase interval: {} seconds, Duration: {} seconds, Chase Count: {}", limit_px, market_price, CHASE_INTERVAL_IN_SEC, start.elapsed().as_secs(), loop_count);
-            
-                    let order = OrderRequest {
-                        asset,
-                        is_buy,
-                        limit_px,
-                        sz: parse_size(sz, sz_decimals),
-                        reduce_only,
-                        order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
-                        cloid,
-                    };
-            
-                    match exchange
-                        .batch_modify_orders(wallet.clone(), vec![ModifyRequest { oid, order }], vault_address)
-                        .await
-                    {
-                        Ok(order) => match order {
-                            Response::Err(err) => {
-                                println!("{:#?}", err);
-                                return;
-                            }
-            
-                            Response::Ok(order) => {
-                                order
-                                    .data
-                                    .expect("expected order response data")
-                                    .statuses
-                                    .iter()
-                                    .for_each(|status| match status {
-                                        Status::Filled(order) => {
-                                            println!("\nOrder {} was successfully filled ✓", order.oid);
-                                        }
-                                        Status::Resting(order) => {
-                                            println!("\nOrder {} was successfully placed ✔️", order.oid);
-
-                                            oid = order.oid;
-                                        }
-                                        Status::Error(msg) => {
-                                            println!("Order failed with error: {:#?}\n", msg)
-                                        }
-                                        _ => unreachable!(),
-                                    });
-
-                                if is_market {
-                                    println!("---\nExited limit chase and placed a market order, Chase interval: {} seconds, Duration: {} seconds, Chase Count: {}", CHASE_INTERVAL_IN_SEC, start.elapsed().as_secs(), loop_count);
-                                    break;
-                                }
-                            }
-                        },
-                        Err(err) => {
-                            println!("{:#?}", err);
-                            return;
-                        }
-                    }
-
-                    loop_count += 1;
-
-                    tokio::time::sleep(Duration::from_secs(CHASE_INTERVAL_IN_SEC)).await;
-            
-                }
+            if let (Some(oid), true) = (oid, chase) {
+                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, cloid).await;
             }
-
         }
 
         Some(("sell", matches)) => {
@@ -963,6 +875,14 @@ pub async fn startup(config: &mut Config) {
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
                 )
             });
+
+            let chase = *matches.get_one::<bool>("chase").unwrap_or(&false);
+
+
+            if limit_price.is_zero() && chase {
+                println!("---\nLimit chase is not supported for market orders\n---");
+                return;
+            }
 
             let wallet = Arc::new(
                 match config
@@ -1030,16 +950,19 @@ pub async fn startup(config: &mut Config) {
             // convert $sz to base asset
             let sz = sz / market_price;
 
-            // Update leverage
+            let is_buy = false;
+            let reduce_only = false;
+            let cloid = None;
+
 
             let order = OrderRequest {
                 asset,
-                is_buy: false,
+                is_buy,
                 limit_px: parse_price(limit_price),
                 sz: parse_size(sz, sz_decimals),
-                reduce_only: false,
+                reduce_only,
                 order_type,
-                cloid: None,
+                cloid,
             };
 
             let limit_price = match &order.order_type {
@@ -1056,6 +979,8 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Market price: {}\n", market_price);
 
+            let vault_address = None;
+            let mut oid = None;
             match exchange.place_order(wallet.clone(),vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
@@ -1071,6 +996,7 @@ pub async fn startup(config: &mut Config) {
                             }
                             Status::Resting(order) => {
                                 println!("Order {} was successfully placed.\n", order.oid);
+                                oid = Some(order.oid);
                             }
                             Status::Error(msg) => {
                                 println!("Order failed with error: {:#?}\n", msg)
@@ -1225,6 +1151,10 @@ pub async fn startup(config: &mut Config) {
                         return;
                     }
                 }
+            }
+
+            if let (Some(oid), true) = (oid, chase) {
+                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, cloid).await;
             }
         }
 
