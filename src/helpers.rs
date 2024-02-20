@@ -82,42 +82,20 @@ pub async fn limit_chase(
         let market_price = ctx.mark_px.parse::<f64>().unwrap();
 
         let limit_px = parse_price(
-            market_price
-                * 
-                // if is_buy {
-                //     if is_market {
-                //         1.0 + SLIPPAGE
-                //     } else {
-                //         1.0 - TRAIL_PCT
-                //     }
-                // } else {
-                //     if is_market {
-                //         1.0 - SLIPPAGE
-                //     } else {
-                //         1.0 + TRAIL_PCT
-                //     }
-                // },
-                // if is_buy {
-                //     if is_market {
-                //         1.0 + if is_buy { SLIPPAGE } else { -SLIPPAGE }
-                //     } else {
-                //         1.0 + if is_buy { -TRAIL_PCT } else { TRAIL_PCT }
-                //     }
-                // } else {
-                //     if is_market {
-                //         1.0 - if is_buy { SLIPPAGE } else { -SLIPPAGE }
-                //     } else {
-                //         1.0 - if is_buy { -TRAIL_PCT } else { TRAIL_PCT }
-                //     }
-                // }
-                1.0  + if is_market { 
-                    if is_buy { SLIPPAGE } else { -SLIPPAGE } 
-                }
-                else {  
-                    if is_buy { -TRAIL_PCT } else { TRAIL_PCT } 
-                }
-
-                
+            market_price * 1.0
+                + if is_market {
+                    if is_buy {
+                        SLIPPAGE
+                    } else {
+                        -SLIPPAGE
+                    }
+                } else {
+                    if is_buy {
+                        -TRAIL_PCT
+                    } else {
+                        TRAIL_PCT
+                    }
+                },
         );
 
         println!("---\nChasing order with Limit price: {}, Market price: {}, Chase interval: {} seconds, Duration: {} seconds, Chase Count: {}", limit_px, market_price, CHASE_INTERVAL_IN_SEC, start.elapsed().as_secs(), loop_count);
@@ -169,7 +147,6 @@ pub async fn limit_chase(
                                 } else {
                                     println!("\nOrder failed with error: {:#?}\n", msg);
                                 }
-                                
                             }
                             _ => unreachable!(),
                         });

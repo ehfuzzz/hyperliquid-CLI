@@ -163,6 +163,11 @@ pub fn command() -> Command {
                     .action(ArgAction::SetTrue)
                     .help("Chase market price")
                 )
+                .arg(
+                    Arg::new("tsl")
+                    .long("tsl")
+                    .help("Trailing stop loss")
+                )
         )
         .subcommand(
             Command::new("sell")
@@ -203,6 +208,11 @@ pub fn command() -> Command {
                     .long("chase")
                     .action(ArgAction::SetTrue)
                     .help("Chase market price")
+                )
+                .arg(
+                    Arg::new("tsl")
+                    .long("tsl")
+                    .help("Trailing stop loss")
                 )
         )
         .subcommand(
