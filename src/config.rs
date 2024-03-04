@@ -1,5 +1,5 @@
-use ethers::types::Chain;
 use home::home_dir;
+use hyperliquid::types::Chain;
 
 use crate::types::{Config, MarginType};
 
