@@ -7,10 +7,11 @@ use ethers::{signers::LocalWallet, types::Address};
 use hyperliquid::{
     types::{
         exchange::{
-            request::{Cloid, Limit, ModifyRequest, OrderRequest, OrderType, Tif},
+            request::{Limit, ModifyRequest, OrderRequest, OrderType, Tif},
             response::{Response, Status},
         },
         info::response::{AssetContext, Ctx},
+        Cloid,
     },
     utils::{parse_price, parse_size},
     Exchange, Info,
@@ -52,6 +53,7 @@ pub async fn limit_chase(
     sz: f64,
     sz_decimals: u32,
     reduce_only: bool,
+    discard_price: Option<f64>,
     cloid: Option<Cloid>,
 ) {
     const SLIPPAGE: f64 = 0.01;
@@ -69,10 +71,6 @@ pub async fn limit_chase(
     let mut loop_count = 1;
 
     loop {
-        // Give up limit chasing and place a market order if max chase count is exceeded and the order is still resting or if a certain time has passed
-        let is_market =
-            loop_count > MAX_CHASE_COUNT || start.elapsed().as_secs() > MAX_CHASE_DURATION;
-
         let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
         let ctx = asset_ctx(&asset_ctxs, symbol)
@@ -80,6 +78,22 @@ pub async fn limit_chase(
             .expect("Failed to find asset");
 
         let market_price = ctx.mark_px.parse::<f64>().unwrap();
+
+        // Give up limit chasing and place a market order if
+        // 1. max chase count is exceeded and the order is still resting or
+        // 2. if a certain time has passed or
+        // 3. if the market price is better than the discard price
+        let is_market = loop_count > MAX_CHASE_COUNT
+            || start.elapsed().as_secs() > MAX_CHASE_DURATION
+            || if let Some(discard_price) = discard_price {
+                if is_buy {
+                    market_price > discard_price
+                } else {
+                    market_price < discard_price
+                }
+            } else {
+                false
+            };
 
         let limit_px = parse_price(
             market_price * 1.0

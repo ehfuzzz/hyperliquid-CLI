@@ -168,6 +168,11 @@ pub fn command() -> Command {
                     .long("tsl")
                     .help("Trailing stop loss")
                 )
+                .arg(
+                    Arg::new("dp")
+                    .long("dp")
+                    .help("Discard price")
+                )
         )
         .subcommand(
             Command::new("sell")

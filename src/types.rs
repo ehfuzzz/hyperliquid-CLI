@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use ethers::types::Chain;
+use hyperliquid::types::Chain;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -144,13 +144,13 @@ impl TryFrom<&str> for Pair {
     }
 }
 
-pub enum TpSl {
+pub enum Value {
     Percent(f64),  // 10%
     Fixed(f64),    // 1990
     Absolute(f64), // +/- 10
 }
 
-impl TryFrom<&str> for TpSl {
+impl TryFrom<&str> for Value {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -163,12 +163,12 @@ impl TryFrom<&str> for TpSl {
 
         let size = size.parse::<f64>().map_err(|_| "Invalid size")?;
         match unit {
-            "%" => Ok(TpSl::Percent(size)),
+            "%" => Ok(Value::Percent(size)),
             _ => {
                 if value.starts_with("+") || value.starts_with("-") {
-                    Ok(TpSl::Absolute(size))
+                    Ok(Value::Absolute(size))
                 } else {
-                    Ok(TpSl::Fixed(size))
+                    Ok(Value::Fixed(size))
                 }
             }
         }

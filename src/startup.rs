@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ethers::{signers::{LocalWallet, Signer}, types::Chain};
-use hyperliquid::{types::{exchange::{request::{ Limit, OrderRequest, OrderType, Tif, TpSl, Trigger }, response::{Response, Status}}, info::response::Side}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
+use ethers::signers::{LocalWallet, Signer};
+use hyperliquid::{types::{exchange::{request::{ Limit, OrderRequest, OrderType, Tif, TpSl, Trigger }, response::{Response, Status}}, info::response::Side, Chain}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
 
-use crate::helpers::limit_chase;
-use crate::{command::command, helpers::asset_ctx, types::{Config, LimitPrice, MarginType, OrderSize, Pair, SzPerInterval, TpSl as TPSL, TwapInterval}};
+use crate::{helpers::limit_chase, types::Value};
+use crate::{command::command, helpers::asset_ctx, types::{Config, LimitPrice, MarginType, OrderSize, Pair, SzPerInterval, TwapInterval}};
 
 
 pub async fn startup(config: &mut Config) {
@@ -70,7 +70,7 @@ pub async fn startup(config: &mut Config) {
                 }
             };
 
-            println!("Setting default chain to {}\n", chain);
+            println!("Setting default chain to {:?}\n", chain);
 
             config.chain = chain;
 
@@ -218,7 +218,7 @@ pub async fn startup(config: &mut Config) {
                 .get_one::<String>("asset")
                 .unwrap_or(&config.default_asset);
 
-            let tp: TPSL = matches
+            let tp: Value = matches
                 .get_one::<String>("tp")
                 .expect("Tp price is required")
                 .as_str()
@@ -287,14 +287,14 @@ pub async fn startup(config: &mut Config) {
                 _ => {
                     println!("{}", "-".repeat(35));
 
-                    println!("\nOnly % of order to tp is supported for now");
+                    println!("\nOnly % of order size to tp is supported for now");
                     return;
                 }
             };
 
             let trigger_price = match tp {
-                TPSL::Absolute(value) => entry_price + if is_buy { value } else { -value },
-                TPSL::Percent(value) => {
+                Value::Absolute(value) => entry_price + if is_buy { value } else { -value },
+                Value::Percent(value) => {
                     entry_price
                         * if is_buy {
                             (100.0 + value as f64) / 100.0
@@ -302,7 +302,7 @@ pub async fn startup(config: &mut Config) {
                             (100.0 - value as f64) / 100.0
                         }
                 }
-                TPSL::Fixed(value) => value,
+                Value::Fixed(value) => value,
             };
 
             let order_type = OrderType::Trigger(Trigger {
@@ -382,7 +382,7 @@ pub async fn startup(config: &mut Config) {
                 .get_one::<String>("asset")
                 .unwrap_or(&config.default_asset);
 
-            let sl: TPSL = matches
+            let sl: Value = matches
                 .get_one::<String>("sl")
                 .expect("Sl price is required")
                 .as_str()
@@ -451,8 +451,8 @@ pub async fn startup(config: &mut Config) {
             };
 
             let trigger_price = match sl {
-                TPSL::Absolute(value) => entry_price + if is_buy { value } else { -value },
-                TPSL::Percent(value) => {
+                Value::Absolute(value) => entry_price + if is_buy { value } else { -value },
+                Value::Percent(value) => {
                     entry_price
                         * if is_buy {
                             (100.0 + value as f64) / 100.0
@@ -460,7 +460,7 @@ pub async fn startup(config: &mut Config) {
                             (100.0 - value as f64) / 100.0
                         }
                 }
-                TPSL::Fixed(value) => value,
+                Value::Fixed(value) => value,
             };
 
             let order_type = OrderType::Trigger(Trigger {
@@ -549,15 +549,21 @@ pub async fn startup(config: &mut Config) {
                 .try_into()
                 .expect("Failed to parse limit price");
 
-            let tp: Option<TPSL> = matches.get_one::<String>("tp").map(|price| {
+            let tp: Option<Value> = matches.get_one::<String>("tp").map(|price| {
                 price.as_str().try_into().expect(
                     "Invalid take profit value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let sl: Option<TPSL> = matches.get_one::<String>("sl").map(|price| {
+            let sl: Option<Value> = matches.get_one::<String>("sl").map(|price| {
                 price.as_str().try_into().expect(
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            let dp: Option<Value> = matches.get_one::<String>("dp").map(|value| {
+                value.as_str().try_into().expect(
+                    "Invalid discard price value, expected a number or a percentage value e.g 10%"
                 )
             });
 
@@ -699,9 +705,9 @@ pub async fn startup(config: &mut Config) {
             if tp.is_some() {
 
                 let trigger_price = match tp {
-                    Some(TPSL::Absolute(value)) => limit_price + value,
-                    Some(TPSL::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
-                    Some(TPSL::Fixed(value)) => value,
+                    Some(Value::Absolute(value)) => limit_price + value,
+                    Some(Value::Percent(value)) => limit_price * (100.0 + value) / 100.0,
+                    Some(Value::Fixed(value)) => value,
 
                     None => unreachable!("Expected a take profit value"),
                 };
@@ -771,9 +777,9 @@ pub async fn startup(config: &mut Config) {
             // sl
             if sl.is_some() {
                 let trigger_price = match sl {
-                    Some(TPSL::Absolute(value)) => limit_price - value,
-                    Some(TPSL::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
-                    Some(TPSL::Fixed(value)) => value,
+                    Some(Value::Absolute(value)) => limit_price - value,
+                    Some(Value::Percent(value)) => limit_price * (100.0 - value) / 100.0,
+                    Some(Value::Fixed(value)) => value,
 
                     None => unreachable!("Expected a stop loss value"),
                 };
@@ -841,7 +847,13 @@ pub async fn startup(config: &mut Config) {
             }
 
             if let (Some(oid), true) = (oid, chase) {
-                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, cloid).await;
+                let discard_price = match  dp {
+                    Some(Value::Absolute(value)) => Some(market_price  + value),
+                    Some(Value::Percent(value)) => Some(market_price * (1.0 + value) / 100.0),
+                    Some(Value::Fixed(value)) => Some(value),
+                    None => None
+                };
+                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
             }
         }
 
@@ -864,15 +876,21 @@ pub async fn startup(config: &mut Config) {
                 .try_into()
                 .expect("Failed to parse limit price");
 
-            let tp: Option<TPSL> = matches.get_one::<String>("tp").map(|price| {
+            let tp: Option<Value> = matches.get_one::<String>("tp").map(|price| {
                 price.as_str().try_into().expect(
                     "Invalid take profit value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let sl: Option<TPSL> = matches.get_one::<String>("sl").map(|price| {
+            let sl: Option<Value> = matches.get_one::<String>("sl").map(|price| {
                 price.as_str().try_into().expect(
                     "Invalid stop loss value, expected a number or a percentage value e.g 10%",
+                )
+            });
+
+            let dp: Option<Value> = matches.get_one::<String>("dp").map(|value| {
+                value.as_str().try_into().expect(
+                    "Invalid discard price value, expected a number or a percentage value e.g 10%"
                 )
             });
 
@@ -908,7 +926,7 @@ pub async fn startup(config: &mut Config) {
 
             let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
 
-            let slippage = 3.0 / 100.0;
+            const SLIPPAGE: f64 = 3.0 / 100.0;
 
             let (order_type, limit_price) = match limit_price {
                 LimitPrice::Absolute(price) => {
@@ -916,7 +934,7 @@ pub async fn startup(config: &mut Config) {
                         // slippage of 3% for buy 'll be 103/100 = 1.03
                         (
                             OrderType::Limit(Limit { tif: Tif::Ioc }),
-                            market_price * (1.0 - slippage),
+                            market_price * (1.0 - SLIPPAGE),
                         )
                     } else {
                         (OrderType::Limit(Limit { tif: Tif::Gtc }), price)
@@ -1013,9 +1031,9 @@ pub async fn startup(config: &mut Config) {
 
             if tp.is_some() {
                 let trigger_price = match tp {
-                    Some(TPSL::Absolute(value)) => limit_price - value,
-                    Some(TPSL::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
-                    Some(TPSL::Fixed(value)) => value,
+                    Some(Value::Absolute(value)) => limit_price - value,
+                    Some(Value::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
+                    Some(Value::Fixed(value)) => value,
 
                     None => unreachable!("Expected a take profit value"),
                 };
@@ -1084,9 +1102,9 @@ pub async fn startup(config: &mut Config) {
 
             if sl.is_some() {
                 let trigger_price = match sl {
-                    Some(TPSL::Absolute(value)) => limit_price + value,
-                    Some(TPSL::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
-                    Some(TPSL::Fixed(value)) => value,
+                    Some(Value::Absolute(value)) => limit_price + value,
+                    Some(Value::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
+                    Some(Value::Fixed(value)) => value,
 
                     None => unreachable!("Expected a stop loss value"),
                 };
@@ -1154,7 +1172,14 @@ pub async fn startup(config: &mut Config) {
             }
 
             if let (Some(oid), true) = (oid, chase) {
-                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, cloid).await;
+                let discard_price = match  dp {
+                    Some(Value::Absolute(value)) => Some(market_price  - value),
+                    Some(Value::Percent(value)) => Some(market_price * (1.0 - value) / 100.0),
+                    Some(Value::Fixed(value)) => Some(value),
+                    None => None
+                };
+
+                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
             }
         }
 
