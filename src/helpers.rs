@@ -347,7 +347,7 @@ pub async fn trail_stop_loss(
 
         let market_price = ctx.mark_px.parse::<f64>().unwrap();
 
-        if market_price < entry_price && !is_buy || market_price > entry_price && is_buy {
+        if (market_price < entry_price && !is_buy) || (market_price > entry_price && is_buy) {
             println!(
                 "\n[SKIPPING] Mark {} is not favorable to adjust TSL, rechecking in {}s...",
                 parse_price(market_price),
