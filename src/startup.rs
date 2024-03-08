@@ -5,7 +5,7 @@ use std::time::Duration;
 use ethers::signers::{LocalWallet, Signer};
 use hyperliquid::{types::{exchange::{request::{ Limit, OrderRequest, OrderType, Tif, TpSl, Trigger }, response::{Response, Status}}, info::response::Side, Chain}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
 
-use crate::{helpers::limit_chase, types::Value};
+use crate::{helpers::{limit_chase, trail_stop_loss}, types::Value};
 use crate::{command::command, helpers::asset_ctx, types::{Config, LimitPrice, MarginType, OrderSize, Pair, SzPerInterval, TwapInterval}};
 
 
@@ -567,6 +567,10 @@ pub async fn startup(config: &mut Config) {
                 )
             });
 
+            let tsl: Option<Value> = matches
+                .get_one::<String>("tsl")
+                .map(|value| value.as_str().try_into().expect("Invalid tsl value, expected a number or a percentage value e.g 10%"));
+
             let chase = *matches.get_one::<bool>("chase").unwrap_or(&false);
 
             if limit_price.is_zero() && chase {
@@ -670,7 +674,7 @@ pub async fn startup(config: &mut Config) {
             println!("Market price: {}\n", market_price);
             
             let vault_address = None;
-            let mut oid = None;
+            let mut poid = None;
             match exchange.place_order(wallet.clone(), vec![order], vault_address).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
@@ -683,10 +687,11 @@ pub async fn startup(config: &mut Config) {
                         order.data.expect("Expected order response data").statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
+                                poid = Some(order.oid);
                             }
                             Status::Resting(order) =>  {
                                 println!("Order {} was successfully placed.\n", order.oid);
-                                oid = Some(order.oid);
+                                poid = Some(order.oid);
                             },
                             Status::Error(msg) => {
                                 println!("Order failed with error: {:#?}\n", msg)
@@ -702,14 +707,11 @@ pub async fn startup(config: &mut Config) {
             }
 
             // tp
-            if tp.is_some() {
-
+            if let (Some(_), Some(tp)) = (poid,tp) {
                 let trigger_price = match tp {
-                    Some(Value::Absolute(value)) => limit_price + value,
-                    Some(Value::Percent(value)) => limit_price * (100.0 + value) / 100.0,
-                    Some(Value::Fixed(value)) => value,
-
-                    None => unreachable!("Expected a take profit value"),
+                    Value::Absolute(value) => limit_price + value,
+                    Value::Percent(value) => limit_price * (100.0 + value) / 100.0,
+                    Value::Fixed(value) => value,
                 };
                     
                 let order_type = OrderType::Trigger(Trigger {
@@ -775,13 +777,11 @@ pub async fn startup(config: &mut Config) {
             }
 
             // sl
-            if sl.is_some() {
+            if let (Some(_), Some(sl)) = (poid, sl) {
                 let trigger_price = match sl {
-                    Some(Value::Absolute(value)) => limit_price - value,
-                    Some(Value::Percent(value)) => limit_price * (100.0 - value) / 100.0,
-                    Some(Value::Fixed(value)) => value,
-
-                    None => unreachable!("Expected a stop loss value"),
+                    Value::Absolute(value) => limit_price - value,
+                    Value::Percent(value) => limit_price * (100.0 - value) / 100.0,
+                    Value::Fixed(value) => value,
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
@@ -846,14 +846,93 @@ pub async fn startup(config: &mut Config) {
                 }
             }
 
-            if let (Some(oid), true) = (oid, chase) {
+            // chase
+            if let (Some(oid), true) = (poid, chase) {
                 let discard_price = match  dp {
                     Some(Value::Absolute(value)) => Some(market_price  + value),
-                    Some(Value::Percent(value)) => Some(market_price * (1.0 + value) / 100.0),
+                    Some(Value::Percent(value)) => Some(market_price * (100.0 + value) / 100.0),
                     Some(Value::Fixed(value)) => Some(value),
                     None => None
                 };
-                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
+
+                poid = limit_chase(&exchange, &info, wallet.clone(), oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
+                
+            }
+
+            // trailing stop loss
+            if let (Some(poid), Some(tsl)) = (poid, tsl) {
+                let trigger_price = match tsl {
+                    Value::Absolute(value) => limit_price - value,
+                    Value::Percent(value) => limit_price * (100.0 - value) / 100.0,
+                    Value::Fixed(value) => value,
+                };
+
+                let order_type = OrderType::Trigger(Trigger {
+                    trigger_px: parse_price(trigger_price).parse().unwrap(),
+                    is_market: true,
+                    tpsl: TpSl::Sl,
+                });
+
+                let order = OrderRequest {
+                    asset,
+                    is_buy: false,
+                    limit_px: parse_price(trigger_price),
+                    sz: parse_size(sz, sz_decimals),
+                    reduce_only: true,
+                    order_type,
+                    cloid: None,
+                };
+
+                println!("{}", "---".repeat(20));
+                println!("Side: Close Long");
+                println!("Size in {}: {}", symbol, order.sz);
+                println!(
+                    "Size in USD: {}",
+                    parse_size(sz * market_price, sz_decimals)
+                );
+                println!("Entry price: {}", order.limit_px);
+                println!("Market price: {}\n", market_price);
+
+            let mut oid = None;
+            match exchange.place_order(wallet.clone(), vec![order], None).await {
+                    Ok(order) => match order {
+                        Response::Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        
+                        }
+                        
+                        Response::Ok(order) => {
+                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                Status::Filled(order) => {
+                                    println!(
+                                        "Trailing stop loss order {} was successfully filled.\n",
+                                        order.oid
+                                    );
+                                }
+                                Status::Resting(order) => {
+                                    println!(
+                                        "Trailing stop loss order {} was successfully placed.\n",
+                                        order.oid
+                                    );
+                                    oid = Some(order.oid);
+                                }
+                                Status::Error(msg) => {
+                                    println!("Trailing stop loss order failed with error: {:#?}\n", msg)
+                                }
+                                _ =>  unreachable!(),
+                            });
+                        }
+                    },
+                    Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
+                }
+                if let Some(oid) = oid {
+                    trail_stop_loss(&exchange, &info, wallet.clone(), poid, oid, &symbol,asset, false, sz, sz_decimals).await;
+                }
+            
             }
         }
 
@@ -893,6 +972,11 @@ pub async fn startup(config: &mut Config) {
                     "Invalid discard price value, expected a number or a percentage value e.g 10%"
                 )
             });
+
+            let tsl: Option<Value> = matches
+            .get_one::<String>("tsl")
+            .map(|value| value.as_str().try_into().expect("Invalid tsl value, expected a number or a percentage value e.g 10%"));
+
 
             let chase = *matches.get_one::<bool>("chase").unwrap_or(&false);
 
@@ -998,7 +1082,7 @@ pub async fn startup(config: &mut Config) {
             println!("Market price: {}\n", market_price);
 
             let vault_address = None;
-            let mut oid = None;
+            let mut poid = None;
             match exchange.place_order(wallet.clone(),vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
@@ -1011,10 +1095,11 @@ pub async fn startup(config: &mut Config) {
                         order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
+                                poid = Some(order.oid);
                             }
                             Status::Resting(order) => {
                                 println!("Order {} was successfully placed.\n", order.oid);
-                                oid = Some(order.oid);
+                                poid = Some(order.oid);
                             }
                             Status::Error(msg) => {
                                 println!("Order failed with error: {:#?}\n", msg)
@@ -1029,13 +1114,12 @@ pub async fn startup(config: &mut Config) {
                 }
             }
 
-            if tp.is_some() {
+            // tp
+            if let (Some(_), Some(tp)) = (poid, tp) {
                 let trigger_price = match tp {
-                    Some(Value::Absolute(value)) => limit_price - value,
-                    Some(Value::Percent(value)) => limit_price * (100.0 - value as f64) / 100.0,
-                    Some(Value::Fixed(value)) => value,
-
-                    None => unreachable!("Expected a take profit value"),
+                    Value::Absolute(value) => limit_price - value,
+                    Value::Percent(value) => limit_price * (100.0 - value as f64) / 100.0,
+                    Value::Fixed(value) => value,
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
@@ -1100,13 +1184,12 @@ pub async fn startup(config: &mut Config) {
                 }
             }
 
-            if sl.is_some() {
+            // sl
+            if let (Some(_), Some(sl)) = (poid, sl) {
                 let trigger_price = match sl {
-                    Some(Value::Absolute(value)) => limit_price + value,
-                    Some(Value::Percent(value)) => limit_price * (100.0 + value as f64) / 100.0,
-                    Some(Value::Fixed(value)) => value,
-
-                    None => unreachable!("Expected a stop loss value"),
+                    Value::Absolute(value) => limit_price + value,
+                    Value::Percent(value) => limit_price * (100.0 + value) / 100.0,
+                    Value::Fixed(value) => value,
                 };
 
                 let order_type = OrderType::Trigger(Trigger {
@@ -1171,15 +1254,92 @@ pub async fn startup(config: &mut Config) {
                 }
             }
 
-            if let (Some(oid), true) = (oid, chase) {
+            // chase
+            if let (Some(oid), true) = (poid, chase) {
                 let discard_price = match  dp {
                     Some(Value::Absolute(value)) => Some(market_price  - value),
-                    Some(Value::Percent(value)) => Some(market_price * (1.0 - value) / 100.0),
+                    Some(Value::Percent(value)) => Some(market_price * (100.0 - value) / 100.0),
                     Some(Value::Fixed(value)) => Some(value),
                     None => None
                 };
 
-                limit_chase(&exchange, &info, wallet, oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
+                poid = limit_chase(&exchange, &info, wallet.clone(), oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
+                
+            }
+
+            // trailing stop loss
+            if let (Some(poid), Some(tsl)) = (poid, tsl) {
+                let trigger_price = match tsl {
+                    Value::Absolute(value) => limit_price + value,
+                    Value::Percent(value) => limit_price * (100.0 + value) / 100.0,
+                    Value::Fixed(value) => value,
+                };
+
+                let order_type = OrderType::Trigger(Trigger {
+                    trigger_px: parse_price(trigger_price).parse().unwrap(),
+                    is_market: true,
+                    tpsl: TpSl::Sl,
+                });
+
+                let order = OrderRequest {
+                    asset,
+                    is_buy: true,
+                    limit_px: parse_price(trigger_price),
+                    sz: parse_size(sz, sz_decimals),
+                    reduce_only: true,
+                    order_type,
+                    cloid: None,
+                };
+
+                println!("{}", "---".repeat(20));
+                println!("Side: Close Short");
+                println!("Size in {}: {}", symbol, order.sz);
+                println!(
+                    "Size in USD: {}",
+                    parse_size(sz * market_price, sz_decimals)
+                );
+                println!("Entry price: {}", order.limit_px);
+                println!("Market price: {}\n", market_price);
+
+                let mut oid = None;
+                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                    Ok(order) => match order {
+                        Response::Err(err) => {
+                            println!("{:#?}", err);
+                            return;
+                        
+                        }
+                        
+                        Response::Ok(order) => {
+                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                Status::Filled(order) => {
+                                    println!(
+                                        "Trailing stop loss order {} was successfully filled.\n",
+                                        order.oid
+                                    );
+                                }
+                                Status::Resting(order) => {
+                                    println!(
+                                        "Trailing stop loss order {} was successfully placed.\n",
+                                        order.oid
+                                    );
+                                    oid = Some(order.oid);
+                                }
+                                Status::Error(msg) => {
+                                    println!("Trailing stop loss order failed with error: {:#?}\n", msg)
+                                }
+                                _ =>  unreachable!(),
+                            });
+                        }
+                    },
+                    Err(err) => {
+                        println!("{:#?}", err);
+                        return;
+                    }
+                }
+                if let Some(oid) = oid {
+                    trail_stop_loss(&exchange, &info, wallet.clone(), poid, oid, &symbol,asset, true, sz, sz_decimals).await;
+                }
             }
         }
 
