@@ -71,7 +71,7 @@ Same as tp command but for setting a stop loss
 
 #### Buy/Sell Commands
 
-`hl buy --size <size> --asset <asset> --price <price> --sl <sl> --tp <tp>` - places a buy order for the specified asset
+`hl buy --size <size> --asset <asset> --price <price> --sl <sl> --tp <tp> --chase --dp <value> --tsl <value>` - places a buy order for the specified asset
 
 size:[_optional_] is the order size. If not specified, the default order size in the config will be used
 
@@ -83,6 +83,12 @@ sl:[_optional_] is the price to set the stop loss at. If not specified, the stop
 
 tp:[_optional_] is the price to set the take profit at. If not specified, the take profit will not be set. Can be a percentage or a pnl amount or the exact price
 
+--chase: [_optional_] refers to whether to chase the limit order until it is filled. If not specified, the bot will not chase the limit order
+
+dp: [_optional_] refers to the discard price beyond which limit order chasing will be stopped. If not specified, the bot will chase the limit order until it is filled. Can be a percentage or a pnl amount or the exact price
+
+tsl: [_optional_] refers to the trailing stop loss. If not specified, the trailing stop loss will not be set. Can be a percentage or a pnl amount or the exact price
+
 #### examples
 
 1. `hl buy --size 100 --asset btc --price 1900 --sl 1800 --tp 2000` - places a buy order for 100 usd worth of btc at the price of $1900. The stop loss will be set at $1800 and the take profit will be set at $2000
@@ -93,7 +99,7 @@ tp:[_optional_] is the price to set the take profit at. If not specified, the ta
 
 ---
 
-`hl sell --size <size> --asset <asset> --price <price> --sl <sl> --tp <tp>` - places a sell order for the specified asset
+`hl sell --size <size> --asset <asset> --price <price> --sl <sl> --tp <tp> --chase --dp <value> --tsl <value>` - places a sell order for the specified asset
 
 same as buy command but for selling
 
