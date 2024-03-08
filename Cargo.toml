@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 clap = "4.4.2"
-ethers = { version = "2.0.13", features = ["eip712"] }
+ethers = { version = "2.0.14", features = ["eip712"] }
 home = "0.5.5"
 hyperliquid = { git = "https://github.com/dennohpeter/hyperliquid.git" }
 serde = "1.0.188"
