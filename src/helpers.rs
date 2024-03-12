@@ -13,7 +13,7 @@ use hyperliquid::{
             request::{
                 CancelRequest, Limit, ModifyRequest, OrderRequest, OrderType, Tif, TpSl, Trigger,
             },
-            response::{Response, Status},
+            response::{Response, Status, StatusType},
         },
         info::response::{AssetContext, Ctx},
         Cloid, Oid,
@@ -145,30 +145,32 @@ pub async fn limit_chase(
 
                 Response::Ok(order) => {
                     let mut filled = false;
-                    order
-                        .data
-                        .expect("expected order response data")
-                        .statuses
-                        .iter()
-                        .for_each(|status| match status {
-                            Status::Filled(order) => {
-                                println!("\nOrder {} was successfully filled ✓", order.oid);
-                                oid = order.oid;
+                    let statuses = match order.data.expect("expected order response data") {
+                        StatusType::Statuses(statuses) => statuses,
+                        _ => {
+                            println!("Invalid response data");
+                            return None;
+                        }
+                    };
+                    statuses.iter().for_each(|status| match status {
+                        Status::Filled(order) => {
+                            println!("\nOrder {} was successfully filled ✓", order.oid);
+                            oid = order.oid;
+                        }
+                        Status::Resting(order) => {
+                            println!("\nOrder {} was successfully placed ✔️", order.oid);
+                            oid = order.oid;
+                        }
+                        Status::Error(msg) => {
+                            filled = msg.contains("Cannot modify canceled or filled order");
+                            if filled {
+                                println!("\nOrder {} was successfully filled ✓", oid);
+                            } else {
+                                println!("\nOrder failed with error: {:#?}\n", msg);
                             }
-                            Status::Resting(order) => {
-                                println!("\nOrder {} was successfully placed ✔️", order.oid);
-                                oid = order.oid;
-                            }
-                            Status::Error(msg) => {
-                                filled = msg.contains("Cannot modify canceled or filled order");
-                                if filled {
-                                    println!("\nOrder {} was successfully filled ✓", oid);
-                                } else {
-                                    println!("\nOrder failed with error: {:#?}\n", msg);
-                                }
-                            }
-                            _ => unreachable!(),
-                        });
+                        }
+                        _ => unreachable!(),
+                    });
 
                     if is_market {
                         println!("---\nExited limit chase and placed a market order, Chase interval: {} seconds, Duration: {} seconds, Chase Count: {}", CHASE_INTERVAL_IN_SEC, start.elapsed().as_secs(), loop_count);
@@ -257,10 +259,16 @@ pub async fn trail_stop_loss(
                             Response::Ok(order) => {
                                 let mut cancel = false;
 
-                                order
-                                    .data
-                                    .expect("expected order response data")
-                                    .statuses
+                                let statuses =
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => statuses,
+                                        _ => {
+                                            println!("Invalid response data");
+                                            return;
+                                        }
+                                    };
+
+                                statuses
                                     .iter()
                                     .for_each(|status| match status {
                                         Status::Success => {
@@ -391,42 +399,44 @@ pub async fn trail_stop_loss(
 
                 Response::Ok(order) => {
                     let mut filled = false;
-                    order
-                        .data
-                        .expect("expected order response data")
-                        .statuses
-                        .iter()
-                        .for_each(|status| match status {
-                            Status::Filled(order) => {
+                    let statuses = match order.data.expect("expected order response data") {
+                        StatusType::Statuses(statuses) => statuses,
+                        _ => {
+                            println!("Invalid response data");
+                            return;
+                        }
+                    };
+                    statuses.iter().for_each(|status| match status {
+                        Status::Filled(order) => {
+                            println!(
+                                "\nTrailing stop loss order {} was successfully filled ✓",
+                                order.oid
+                            );
+                        }
+                        Status::Resting(order) => {
+                            println!(
+                                "\nTrailing stop loss order {} was successfully placed ✔️",
+                                order.oid
+                            );
+
+                            oid = order.oid;
+                        }
+                        Status::Error(msg) => {
+                            filled = msg.contains("Cannot modify canceled or filled order");
+                            if filled {
                                 println!(
                                     "\nTrailing stop loss order {} was successfully filled ✓",
-                                    order.oid
+                                    oid
                                 );
-                            }
-                            Status::Resting(order) => {
+                            } else {
                                 println!(
-                                    "\nTrailing stop loss order {} was successfully placed ✔️",
-                                    order.oid
+                                    "\nTrailing stop loss order failed with error: {:#?}\n",
+                                    msg
                                 );
-
-                                oid = order.oid;
                             }
-                            Status::Error(msg) => {
-                                filled = msg.contains("Cannot modify canceled or filled order");
-                                if filled {
-                                    println!(
-                                        "\nTrailing stop loss order {} was successfully filled ✓",
-                                        oid
-                                    );
-                                } else {
-                                    println!(
-                                        "\nTrailing stop loss order failed with error: {:#?}\n",
-                                        msg
-                                    );
-                                }
-                            }
-                            _ => unreachable!(),
-                        });
+                        }
+                        _ => unreachable!(),
+                    });
 
                     if filled {
                         break;

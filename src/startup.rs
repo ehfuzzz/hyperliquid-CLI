@@ -3,16 +3,31 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::signers::{LocalWallet, Signer};
-use hyperliquid::{types::{exchange::{request::{ Limit, OrderRequest, OrderType, Tif, TpSl, Trigger }, response::{Response, Status}}, info::response::Side, Chain}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
+use hyperliquid::{
+    types::{
+        exchange::{
+            request::{Limit, OrderRequest, OrderType, Tif, TpSl, Trigger},
+            response::{Response, Status, StatusType},
+        },
+        info::response::Side,
+        Chain,
+    },
+    utils::{parse_price, parse_size},
+    Exchange, Hyperliquid, Info,
+};
 
-use crate::{helpers::{limit_chase, trail_stop_loss}, types::Value};
-use crate::{command::command, helpers::asset_ctx, types::{Config, LimitPrice, MarginType, OrderSize, Pair, SzPerInterval, TwapInterval}};
-
+use crate::{
+    command::command,
+    helpers::asset_ctx,
+    types::{Config, LimitPrice, MarginType, OrderSize, Pair, SzPerInterval, TwapInterval},
+};
+use crate::{
+    helpers::{limit_chase, trail_stop_loss},
+    types::Value,
+};
 
 pub async fn startup(config: &mut Config) {
-
-
-    let chain =  match config.chain {
+    let chain = match config.chain {
         Chain::Dev => Chain::Dev,
         Chain::ArbitrumGoerli => Chain::ArbitrumGoerli,
         Chain::Arbitrum => Chain::Arbitrum,
@@ -35,7 +50,8 @@ pub async fn startup(config: &mut Config) {
         Some(("login", matches)) => {
             let private_key = matches
                 .get_one::<String>("private_key")
-                .expect("Private key is required").to_string();
+                .expect("Private key is required")
+                .to_string();
 
             let wallet = match private_key.parse::<LocalWallet>() {
                 Ok(wallet) => wallet,
@@ -82,17 +98,13 @@ pub async fn startup(config: &mut Config) {
 
         Some(("set", matches)) => match matches.subcommand() {
             Some(("dl", matches)) => {
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
 
                 let leverage = matches
                     .get_one::<String>("leverage")
@@ -108,32 +120,40 @@ pub async fn startup(config: &mut Config) {
 
                 // loop through all assets and update leverage
 
-                let symbols = assets.iter().map(|(symbol, _)| symbol.as_str()).collect::<Vec<_>>();
+                let symbols = assets
+                    .iter()
+                    .map(|(symbol, _)| symbol.as_str())
+                    .collect::<Vec<_>>();
 
-                println!("---\nUpdating leverage for {} to {}%...\n---", symbols.join(","), leverage);
+                println!(
+                    "---\nUpdating leverage for {} to {}%...\n---",
+                    symbols.join(","),
+                    leverage
+                );
                 for (_, v) in &assets {
                     let is_cross = if let MarginType::Cross = config.default_margin {
                         true
                     } else {
                         false
                     };
-                    match  exchange.update_leverage(wallet.clone(),leverage, v.1, is_cross).await {
-                        Ok(_) => {
-                        }
+                    match exchange
+                        .update_leverage(wallet.clone(), leverage, v.1, is_cross)
+                        .await
+                    {
+                        Ok(_) => {}
                         Err(err) => println!("Failed to update leverage: {:#?}", err),
                     }
-                    
                 }
 
                 println!("Successfully updated leverage for all assets ✔️\n---");
-
             }
             Some(("ds", matches)) => {
                 let _sz: OrderSize = match matches
-                .get_one::<String>("size")
-                .expect("Order size is required")
-                .as_str()
-                .try_into() {
+                    .get_one::<String>("size")
+                    .expect("Order size is required")
+                    .as_str()
+                    .try_into()
+                {
                     Ok(sz) => sz,
                     Err(err) => {
                         println!("Failed to parse order size: {:#?}", err);
@@ -141,11 +161,11 @@ pub async fn startup(config: &mut Config) {
                     }
                 };
 
-
                 let sz = matches
-                .get_one::<String>("size")
-                .expect("Order size is required").trim().to_string();
-
+                    .get_one::<String>("size")
+                    .expect("Order size is required")
+                    .trim()
+                    .to_string();
 
                 println!("Setting default size to {}\n", sz);
 
@@ -170,11 +190,14 @@ pub async fn startup(config: &mut Config) {
                     }
                 };
 
-                println!("Setting default margin to {}\n", if let MarginType::Cross = margin {
-                    "Cross"
-                } else {
-                    "Isolated"
-                });
+                println!(
+                    "Setting default margin to {}\n",
+                    if let MarginType::Cross = margin {
+                        "Cross"
+                    } else {
+                        "Isolated"
+                    }
+                );
 
                 config.default_margin = margin;
 
@@ -182,13 +205,12 @@ pub async fn startup(config: &mut Config) {
                     Ok(_) => println!("Successfully updated default asset ✔️\n---"),
                     Err(err) => println!("Failed to update default asset: {:#?}", err),
                 }
-
             }
 
             Some(("da", matches)) => {
                 let asset = matches
-                .get_one::<String>("asset")
-                .expect("Asset is required");
+                    .get_one::<String>("asset")
+                    .expect("Asset is required");
 
                 println!("Setting default asset to {}\n", asset);
 
@@ -203,7 +225,6 @@ pub async fn startup(config: &mut Config) {
                 println!("Invalid command");
                 return;
             }
-
         },
 
         Some(("tp", matches)) => {
@@ -227,21 +248,16 @@ pub async fn startup(config: &mut Config) {
 
             // ----------------------------------------------
 
-            let wallet = Arc::new(
-                match config
-                    .private_key
-                    .parse::<LocalWallet>() {
-                        Ok(wallet) => wallet,
-                        Err(_) => {
-                            println!("Error: Invalid private key");
-                            return;
-                        }
-                    }
-            );
+            let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            });
 
             let (sz, entry_price, is_buy) = match sz {
                 OrderSize::Percent(sz) => {
-
                     let state = info
                         .user_state(wallet.address())
                         .await
@@ -328,22 +344,29 @@ pub async fn startup(config: &mut Config) {
             println!("{}", "---".repeat(20));
             println!("Side: Close Long");
             println!("Size in {}: {}", symbol, order.sz);
-            println!(
-                "Size in USD: {}",
-                parse_size(sz * entry_price, sz_decimals)
-            );
+            println!("Size in USD: {}", parse_size(sz * entry_price, sz_decimals));
             println!("Entry price: {}", entry_price);
 
-            match exchange.place_order(wallet.clone(),vec![order], None).await {
+            match exchange
+                .place_order(wallet.clone(), vec![order], None)
+                .await
+            {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
                         return;
-                    
                     }
-                    
+
                     Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        let statuses = match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => statuses,
+                            _ => {
+                                println!("Invalid response data");
+                                return;
+                            }
+                        };
+
+                        statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!(
                                     "Take profit order {} was successfully filled.\n",
@@ -359,8 +382,7 @@ pub async fn startup(config: &mut Config) {
                             Status::Error(msg) => {
                                 println!("Take profit order failed with error: {:#?}\n", msg)
                             }
-                            _ =>  unreachable!(),
-
+                            _ => unreachable!(),
                         });
                     }
                 },
@@ -389,17 +411,13 @@ pub async fn startup(config: &mut Config) {
                 .try_into()
                 .expect("Failed to parse stop loss price");
 
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+            let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            });
 
             let (sz, entry_price, is_buy) = match sz {
                 OrderSize::Percent(sz) => {
@@ -487,22 +505,28 @@ pub async fn startup(config: &mut Config) {
 
             println!("Side: Close Long");
             println!("Size in {}: {}", symbol, order.sz);
-            println!(
-                "Size in USD: {}",
-                parse_size(sz * entry_price, sz_decimals)
-            );
+            println!("Size in USD: {}", parse_size(sz * entry_price, sz_decimals));
             println!("Entry price: {}", entry_price);
 
-            match exchange.place_order(wallet.clone(),vec![order], None).await {
+            match exchange
+                .place_order(wallet.clone(), vec![order], None)
+                .await
+            {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
                         return;
-                    
                     }
-                    
+
                     Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        let statuses = match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => statuses,
+                            _ => {
+                                println!("Invalid response data");
+                                return;
+                            }
+                        };
+                        statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!(
                                     "Stop loss order {} was successfully filled.\n",
@@ -518,8 +542,7 @@ pub async fn startup(config: &mut Config) {
                             Status::Error(msg) => {
                                 println!("Stop loss order failed with error: {:#?}\n", msg)
                             }
-                            _ =>  unreachable!(),
-
+                            _ => unreachable!(),
                         });
                     }
                 },
@@ -563,13 +586,16 @@ pub async fn startup(config: &mut Config) {
 
             let dp: Option<Value> = matches.get_one::<String>("dp").map(|value| {
                 value.as_str().try_into().expect(
-                    "Invalid discard price value, expected a number or a percentage value e.g 10%"
+                    "Invalid discard price value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let tsl: Option<Value> = matches
-                .get_one::<String>("tsl")
-                .map(|value| value.as_str().try_into().expect("Invalid tsl value, expected a number or a percentage value e.g 10%"));
+            let tsl: Option<Value> = matches.get_one::<String>("tsl").map(|value| {
+                value
+                    .as_str()
+                    .try_into()
+                    .expect("Invalid tsl value, expected a number or a percentage value e.g 10%")
+            });
 
             let chase = *matches.get_one::<bool>("chase").unwrap_or(&false);
 
@@ -578,25 +604,17 @@ pub async fn startup(config: &mut Config) {
                 return;
             }
 
-            let wallet = Arc::new(
-                match config
-                    .private_key
-                    .parse::<LocalWallet>() {
-                        Ok(wallet) => wallet,
-                        Err(_) => {
-                            println!("Error: Invalid private key");
-                            return;
-                        }
-                    }
-            );
+            let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            });
             // ----------------------------------------------
-        let asset_ctxs = info
-                .contexts()
-                .await
-                .expect("Failed to fetch asset ctxs");
+            let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
-            let ctx =
-            asset_ctx(&asset_ctxs,symbol)
+            let ctx = asset_ctx(&asset_ctxs, symbol)
                 .expect("Failed to fetch asset ctxs")
                 .expect("Failed to find asset");
 
@@ -672,31 +690,40 @@ pub async fn startup(config: &mut Config) {
                 parse_size(sz * market_price, sz_decimals)
             );
             println!("Market price: {}\n", market_price);
-            
+
             let vault_address = None;
             let mut poid = None;
-            match exchange.place_order(wallet.clone(), vec![order], vault_address).await {
+            match exchange
+                .place_order(wallet.clone(), vec![order], vault_address)
+                .await
+            {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
                         return;
-                    
                     }
-                    
+
                     Response::Ok(order) => {
-                        order.data.expect("Expected order response data").statuses.iter().for_each(|status| match status {
+                        let statuses = match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => statuses,
+                            _ => {
+                                println!("Invalid response data");
+                                return;
+                            }
+                        };
+                        statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
                                 poid = Some(order.oid);
                             }
-                            Status::Resting(order) =>  {
+                            Status::Resting(order) => {
                                 println!("Order {} was successfully placed.\n", order.oid);
                                 poid = Some(order.oid);
-                            },
+                            }
                             Status::Error(msg) => {
                                 println!("Order failed with error: {:#?}\n", msg)
                             }
-                            _ =>  unreachable!(),
+                            _ => unreachable!(),
                         });
                     }
                 },
@@ -707,13 +734,13 @@ pub async fn startup(config: &mut Config) {
             }
 
             // tp
-            if let (Some(_), Some(tp)) = (poid,tp) {
+            if let (Some(_), Some(tp)) = (poid, tp) {
                 let trigger_price = match tp {
                     Value::Absolute(value) => limit_price + value,
                     Value::Percent(value) => limit_price * (100.0 + value) / 100.0,
                     Value::Fixed(value) => value,
                 };
-                    
+
                 let order_type = OrderType::Trigger(Trigger {
                     trigger_px: parse_price(trigger_price).parse().unwrap(),
                     is_market: true,
@@ -740,16 +767,25 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),vec![order], None).await {
+                match exchange
+                    .place_order(wallet.clone(), vec![order], None)
+                    .await
+                {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
                             return;
-                        
                         }
-                        
+
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            let statuses = match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => statuses,
+                                _ => {
+                                    println!("Invalid response data");
+                                    return;
+                                }
+                            };
+                            statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Take profit order {} was successfully filled.\n",
@@ -765,7 +801,7 @@ pub async fn startup(config: &mut Config) {
                                 Status::Error(msg) => {
                                     println!("Take profit order failed with error: {:#?}\n", msg)
                                 }
-                                _ =>  unreachable!(),
+                                _ => unreachable!(),
                             });
                         }
                     },
@@ -810,16 +846,25 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),vec![order], None).await {
+                match exchange
+                    .place_order(wallet.clone(), vec![order], None)
+                    .await
+                {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
                             return;
-                        
                         }
-                        
+
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            let statuses = match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => statuses,
+                                _ => {
+                                    println!("Invalid response data");
+                                    return;
+                                }
+                            };
+                            statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Stop loss order {} was successfully filled.\n",
@@ -835,7 +880,7 @@ pub async fn startup(config: &mut Config) {
                                 Status::Error(msg) => {
                                     println!("Stop loss order failed with error: {:#?}\n", msg)
                                 }
-                                _ =>  unreachable!(),
+                                _ => unreachable!(),
                             });
                         }
                     },
@@ -848,15 +893,29 @@ pub async fn startup(config: &mut Config) {
 
             // chase
             if let (Some(oid), true) = (poid, chase) {
-                let discard_price = match  dp {
-                    Some(Value::Absolute(value)) => Some(market_price  + value),
+                let discard_price = match dp {
+                    Some(Value::Absolute(value)) => Some(market_price + value),
                     Some(Value::Percent(value)) => Some(market_price * (100.0 + value) / 100.0),
                     Some(Value::Fixed(value)) => Some(value),
-                    None => None
+                    None => None,
                 };
 
-                poid = limit_chase(&exchange, &info, wallet.clone(), oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
-                
+                poid = limit_chase(
+                    &exchange,
+                    &info,
+                    wallet.clone(),
+                    oid,
+                    vault_address,
+                    symbol,
+                    asset,
+                    is_buy,
+                    sz,
+                    sz_decimals,
+                    reduce_only,
+                    discard_price,
+                    cloid,
+                )
+                .await;
             }
 
             // trailing stop loss
@@ -893,17 +952,26 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-            let mut oid = None;
-            match exchange.place_order(wallet.clone(), vec![order], None).await {
+                let mut oid = None;
+                match exchange
+                    .place_order(wallet.clone(), vec![order], None)
+                    .await
+                {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
                             return;
-                        
                         }
-                        
+
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            let statuses = match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => statuses,
+                                _ => {
+                                    println!("Invalid response data");
+                                    return;
+                                }
+                            };
+                            statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Trailing stop loss order {} was successfully filled.\n",
@@ -918,9 +986,12 @@ pub async fn startup(config: &mut Config) {
                                     oid = Some(order.oid);
                                 }
                                 Status::Error(msg) => {
-                                    println!("Trailing stop loss order failed with error: {:#?}\n", msg)
+                                    println!(
+                                        "Trailing stop loss order failed with error: {:#?}\n",
+                                        msg
+                                    )
                                 }
-                                _ =>  unreachable!(),
+                                _ => unreachable!(),
                             });
                         }
                     },
@@ -930,9 +1001,20 @@ pub async fn startup(config: &mut Config) {
                     }
                 }
                 if let Some(oid) = oid {
-                    trail_stop_loss(&exchange, &info, wallet.clone(), poid, oid, &symbol,asset, false, sz, sz_decimals).await;
+                    trail_stop_loss(
+                        &exchange,
+                        &info,
+                        wallet.clone(),
+                        poid,
+                        oid,
+                        &symbol,
+                        asset,
+                        false,
+                        sz,
+                        sz_decimals,
+                    )
+                    .await;
                 }
-            
             }
         }
 
@@ -969,42 +1051,35 @@ pub async fn startup(config: &mut Config) {
 
             let dp: Option<Value> = matches.get_one::<String>("dp").map(|value| {
                 value.as_str().try_into().expect(
-                    "Invalid discard price value, expected a number or a percentage value e.g 10%"
+                    "Invalid discard price value, expected a number or a percentage value e.g 10%",
                 )
             });
 
-            let tsl: Option<Value> = matches
-            .get_one::<String>("tsl")
-            .map(|value| value.as_str().try_into().expect("Invalid tsl value, expected a number or a percentage value e.g 10%"));
-
+            let tsl: Option<Value> = matches.get_one::<String>("tsl").map(|value| {
+                value
+                    .as_str()
+                    .try_into()
+                    .expect("Invalid tsl value, expected a number or a percentage value e.g 10%")
+            });
 
             let chase = *matches.get_one::<bool>("chase").unwrap_or(&false);
-
 
             if limit_price.is_zero() && chase {
                 println!("---\nLimit chase is not supported for market orders\n---");
                 return;
             }
 
-            let wallet = Arc::new(
-                match config
-                    .private_key
-                    .parse::<LocalWallet>() {
-                        Ok(wallet) => wallet,
-                        Err(_) => {
-                            println!("Error: Invalid private key");
-                            return;
-                        }
-                    }
-            );
+            let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                Ok(wallet) => wallet,
+                Err(_) => {
+                    println!("Error: Invalid private key");
+                    return;
+                }
+            });
             // ----------------------------------------------
-            let asset_ctxs = info
-                .contexts()
-                .await
-                .expect("Failed to fetch asset ctxs");
+            let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
-            let asset_ctx =
-            asset_ctx(&asset_ctxs,symbol)
+            let asset_ctx = asset_ctx(&asset_ctxs, symbol)
                 .expect("Failed to fetch asset ctxs")
                 .expect("Failed to find asset");
 
@@ -1056,7 +1131,6 @@ pub async fn startup(config: &mut Config) {
             let reduce_only = false;
             let cloid = None;
 
-
             let order = OrderRequest {
                 asset,
                 is_buy,
@@ -1083,16 +1157,25 @@ pub async fn startup(config: &mut Config) {
 
             let vault_address = None;
             let mut poid = None;
-            match exchange.place_order(wallet.clone(),vec![order], None).await {
+            match exchange
+                .place_order(wallet.clone(), vec![order], None)
+                .await
+            {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
                         return;
-                    
                     }
-                    
+
                     Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        let statuses = match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => statuses,
+                            _ => {
+                                println!("Invalid response data");
+                                return;
+                            }
+                        };
+                        statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
                                 poid = Some(order.oid);
@@ -1104,7 +1187,7 @@ pub async fn startup(config: &mut Config) {
                             Status::Error(msg) => {
                                 println!("Order failed with error: {:#?}\n", msg)
                             }
-                            _ =>  unreachable!(),
+                            _ => unreachable!(),
                         });
                     }
                 },
@@ -1148,16 +1231,25 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),vec![order], None).await {
+                match exchange
+                    .place_order(wallet.clone(), vec![order], None)
+                    .await
+                {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
                             return;
-                        
                         }
-                        
+
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            let statuses = match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => statuses,
+                                _ => {
+                                    println!("Invalid response data");
+                                    return;
+                                }
+                            };
+                            statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Take profit order {} was successfully filled.\n",
@@ -1173,7 +1265,7 @@ pub async fn startup(config: &mut Config) {
                                 Status::Error(msg) => {
                                     println!("Take profit order failed with error: {:#?}\n", msg)
                                 }
-                                _ =>  unreachable!(),
+                                _ => unreachable!(),
                             });
                         }
                     },
@@ -1218,16 +1310,25 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),vec![order], None).await {
+                match exchange
+                    .place_order(wallet.clone(), vec![order], None)
+                    .await
+                {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
                             return;
-                        
                         }
-                        
+
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            let statuses = match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => statuses,
+                                _ => {
+                                    println!("Invalid response data");
+                                    return;
+                                }
+                            };
+                            statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Stop loss order {} was successfully filled.\n",
@@ -1243,7 +1344,7 @@ pub async fn startup(config: &mut Config) {
                                 Status::Error(msg) => {
                                     println!("Stop loss order failed with error: {:#?}\n", msg)
                                 }
-                                _ =>  unreachable!(),
+                                _ => unreachable!(),
                             });
                         }
                     },
@@ -1256,15 +1357,29 @@ pub async fn startup(config: &mut Config) {
 
             // chase
             if let (Some(oid), true) = (poid, chase) {
-                let discard_price = match  dp {
-                    Some(Value::Absolute(value)) => Some(market_price  - value),
+                let discard_price = match dp {
+                    Some(Value::Absolute(value)) => Some(market_price - value),
                     Some(Value::Percent(value)) => Some(market_price * (100.0 - value) / 100.0),
                     Some(Value::Fixed(value)) => Some(value),
-                    None => None
+                    None => None,
                 };
 
-                poid = limit_chase(&exchange, &info, wallet.clone(), oid, vault_address, symbol, asset, is_buy, sz, sz_decimals, reduce_only, discard_price, cloid).await;
-                
+                poid = limit_chase(
+                    &exchange,
+                    &info,
+                    wallet.clone(),
+                    oid,
+                    vault_address,
+                    symbol,
+                    asset,
+                    is_buy,
+                    sz,
+                    sz_decimals,
+                    reduce_only,
+                    discard_price,
+                    cloid,
+                )
+                .await;
             }
 
             // trailing stop loss
@@ -1302,16 +1417,25 @@ pub async fn startup(config: &mut Config) {
                 println!("Market price: {}\n", market_price);
 
                 let mut oid = None;
-                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                match exchange
+                    .place_order(wallet.clone(), vec![order], None)
+                    .await
+                {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
                             return;
-                        
                         }
-                        
+
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            let statuses = match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => statuses,
+                                _ => {
+                                    println!("Invalid response data");
+                                    return;
+                                }
+                            };
+                            statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Trailing stop loss order {} was successfully filled.\n",
@@ -1326,9 +1450,12 @@ pub async fn startup(config: &mut Config) {
                                     oid = Some(order.oid);
                                 }
                                 Status::Error(msg) => {
-                                    println!("Trailing stop loss order failed with error: {:#?}\n", msg)
+                                    println!(
+                                        "Trailing stop loss order failed with error: {:#?}\n",
+                                        msg
+                                    )
                                 }
-                                _ =>  unreachable!(),
+                                _ => unreachable!(),
                             });
                         }
                     },
@@ -1338,7 +1465,19 @@ pub async fn startup(config: &mut Config) {
                     }
                 }
                 if let Some(oid) = oid {
-                    trail_stop_loss(&exchange, &info, wallet.clone(), poid, oid, &symbol,asset, true, sz, sz_decimals).await;
+                    trail_stop_loss(
+                        &exchange,
+                        &info,
+                        wallet.clone(),
+                        poid,
+                        oid,
+                        &symbol,
+                        asset,
+                        true,
+                        sz,
+                        sz_decimals,
+                    )
+                    .await;
                 }
             }
         }
@@ -1368,26 +1507,18 @@ pub async fn startup(config: &mut Config) {
                     .parse::<f64>()
                     .expect("Failed to parse upper price bracket");
 
-                    let wallet = Arc::new(
-                        match config
-                            .private_key
-                            .parse::<LocalWallet>() {
-                                Ok(wallet) => wallet,
-                                Err(_) => {
-                                    println!("Error: Invalid private key");
-                                    return;
-                                }
-                            }
-                    );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
                 // ----------------------------------------------
 
-                let asset_ctxs = info
-                    .contexts()
-                    .await
-                    .expect("Failed to fetch asset ctxs");
+                let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                let asset_ctx =
-                asset_ctx(&asset_ctxs,symbol)
+                let asset_ctx = asset_ctx(&asset_ctxs, symbol)
                     .expect("Failed to fetch asset ctxs")
                     .expect("Failed to find asset");
 
@@ -1425,16 +1556,26 @@ pub async fn startup(config: &mut Config) {
                         cloid: None,
                     };
 
-                    match exchange.place_order(wallet.clone(),vec![order], None).await {
+                    match exchange
+                        .place_order(wallet.clone(), vec![order], None)
+                        .await
+                    {
                         Ok(order) => match order {
                             Response::Err(err) => {
                                 println!("{:#?}", err);
                                 return;
-                            
                             }
-                            
+
                             Response::Ok(order) => {
-                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                let statuses =
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => statuses,
+                                        _ => {
+                                            println!("Invalid response data");
+                                            return;
+                                        }
+                                    };
+                                statuses.iter().for_each(|status| match status {
                                     Status::Filled(order) => {
                                         println!("Order {} was successfully filled.\n", order.oid)
                                     }
@@ -1444,7 +1585,7 @@ pub async fn startup(config: &mut Config) {
                                     Status::Error(msg) => {
                                         println!("Order failed with error: {:#?}\n", msg)
                                     }
-                                    _ =>  unreachable!(),
+                                    _ => unreachable!(),
                                 });
                             }
                         },
@@ -1480,26 +1621,18 @@ pub async fn startup(config: &mut Config) {
                     .parse::<f64>()
                     .expect("Failed to parse upper price bracket");
 
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
                 //------------------------------------
 
-                let asset_ctxs = info
-                    .contexts()
-                    .await
-                    .expect("Failed to fetch asset ctxs");
+                let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                let asset_ctx =
-                asset_ctx(&asset_ctxs,symbol)
+                let asset_ctx = asset_ctx(&asset_ctxs, symbol)
                     .expect("Failed to fetch asset ctxs")
                     .expect("Failed to find asset");
                 let market_price = asset_ctx.mark_px.parse::<f64>().unwrap();
@@ -1507,8 +1640,6 @@ pub async fn startup(config: &mut Config) {
                 let (sz_decimals, asset) = *assets
                     .get(&symbol.to_uppercase())
                     .expect("Failed to find asset");
-
-                
 
                 let interval = (upper - lower) / (sz_per_interval.interval - 1) as f64;
 
@@ -1538,16 +1669,26 @@ pub async fn startup(config: &mut Config) {
                         cloid: None,
                     };
 
-                    match exchange.place_order(wallet.clone(),vec![order], None).await {
+                    match exchange
+                        .place_order(wallet.clone(), vec![order], None)
+                        .await
+                    {
                         Ok(order) => match order {
                             Response::Err(err) => {
                                 println!("{:#?}", err);
                                 return;
-                            
                             }
-                            
+
                             Response::Ok(order) => {
-                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                let statuses =
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => statuses,
+                                        _ => {
+                                            println!("Invalid response data");
+                                            return;
+                                        }
+                                    };
+                                statuses.iter().for_each(|status| match status {
                                     Status::Filled(order) => {
                                         println!("Order {} was successfully filled.\n", order.oid)
                                     }
@@ -1557,7 +1698,7 @@ pub async fn startup(config: &mut Config) {
                                     Status::Error(msg) => {
                                         println!("Order failed with error: {:#?}\n", msg)
                                     }
-                                    _ =>  unreachable!(),
+                                    _ => unreachable!(),
                                 });
                             }
                         },
@@ -1593,18 +1734,13 @@ pub async fn startup(config: &mut Config) {
                         "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
 
-
-                    let wallet = Arc::new(
-                        match config
-                            .private_key
-                            .parse::<LocalWallet>() {
-                                Ok(wallet) => wallet,
-                                Err(_) => {
-                                    println!("Error: Invalid private key");
-                                    return;
-                                }
-                            }
-                    );
+                    let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                        Ok(wallet) => wallet,
+                        Err(_) => {
+                            println!("Error: Invalid private key");
+                            return;
+                        }
+                    });
 
                     let sz = match sz {
                         OrderSize::Absolute(sz) => sz,
@@ -1624,13 +1760,9 @@ pub async fn startup(config: &mut Config) {
                     let slippage = 3.0 / 100.0;
 
                     for i in 1..=interval.num_of_orders {
-                        let asset_ctxs = info
-                            .contexts()
-                            .await
-                            .expect("Failed to fetch asset ctxs");
+                        let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                        let market_price =
-                            asset_ctx(&asset_ctxs,&symbol.to_uppercase())
+                        let market_price = asset_ctx(&asset_ctxs, &symbol.to_uppercase())
                             .expect("Failed to fetch asset ctxs")
                             .expect("Failed to find asset")
                             .mark_px
@@ -1660,7 +1792,10 @@ pub async fn startup(config: &mut Config) {
                             cloid: None,
                         };
 
-                        match exchange.place_order(wallet.clone(),vec![order], None).await {
+                        match exchange
+                            .place_order(wallet.clone(), vec![order], None)
+                            .await
+                        {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -1702,17 +1837,13 @@ pub async fn startup(config: &mut Config) {
                     .try_into().expect(
                         "Invalid interval value, correct format is <time between interval in mins, number of intervals> e.g 5,10",
                     );
-                    let wallet = Arc::new(
-                        match config
-                            .private_key
-                            .parse::<LocalWallet>() {
-                                Ok(wallet) => wallet,
-                                Err(_) => {
-                                    println!("Error: Invalid private key");
-                                    return;
-                                }
-                            }
-                    );
+                    let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                        Ok(wallet) => wallet,
+                        Err(_) => {
+                            println!("Error: Invalid private key");
+                            return;
+                        }
+                    });
 
                     let sz = match sz {
                         OrderSize::Absolute(sz) => sz,
@@ -1732,13 +1863,9 @@ pub async fn startup(config: &mut Config) {
                     let slippage = 3.0 / 100.0;
 
                     for i in 1..=interval.num_of_orders {
-                        let asset_ctxs = info
-                            .contexts()
-                            .await
-                            .expect("Failed to fetch asset ctxs");
+                        let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                        let market_price =
-                            asset_ctx(&asset_ctxs,&symbol.to_uppercase())
+                        let market_price = asset_ctx(&asset_ctxs, &symbol.to_uppercase())
                             .expect("Failed to fetch asset ctxs")
                             .expect("Failed to find asset")
                             .mark_px
@@ -1768,7 +1895,10 @@ pub async fn startup(config: &mut Config) {
                             cloid: None,
                         };
 
-                        match exchange.place_order(wallet.clone(),vec![order], None).await {
+                        match exchange
+                            .place_order(wallet.clone(), vec![order], None)
+                            .await
+                        {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -1800,17 +1930,13 @@ pub async fn startup(config: &mut Config) {
 
         Some(("view", matches)) => match matches.subcommand_name() {
             Some("upnl") => {
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
 
                 let state = info
                     .user_state(wallet.address())
@@ -1832,17 +1958,13 @@ pub async fn startup(config: &mut Config) {
             }
 
             Some("wallet") => {
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
 
                 let state = info
                     .user_state(wallet.address())
@@ -1872,17 +1994,13 @@ pub async fn startup(config: &mut Config) {
                 println!("Total Raw Usd : {}", cms.total_raw_usd);
             }
             Some("unfilled") => {
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
 
                 let unfilled_orders = info.open_orders(wallet.address()).await.unwrap();
                 let repeat = 35;
@@ -1891,7 +2009,14 @@ pub async fn startup(config: &mut Config) {
                     println!();
                     println!("Asset: {}", order.coin);
                     println!("Limit Price: {}", order.limit_px);
-                    println!("Side: {}", if let Side::B = order.side  { "Buy" } else { "Sell" });
+                    println!(
+                        "Side: {}",
+                        if let Side::B = order.side {
+                            "Buy"
+                        } else {
+                            "Sell"
+                        }
+                    );
                     println!("Size: {} {}", order.sz, order.coin);
                 }
 
@@ -1899,17 +2024,13 @@ pub async fn startup(config: &mut Config) {
                 println!("\nTotal Unfilled Orders: {}", unfilled_orders.len());
             }
             Some("open") => {
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
                 let state = info.user_state(wallet.address()).await.unwrap();
 
                 let open_positions = state
@@ -1995,17 +2116,13 @@ pub async fn startup(config: &mut Config) {
                     )
                 });
 
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
 
                 // ----------------------------------------------
                 let slippage = 3.0 / 100.0;
@@ -2026,13 +2143,10 @@ pub async fn startup(config: &mut Config) {
                         if target == 0.0 {
                             // Takes 50% of order size and longs Asset X and
                             {
-                                let asset_ctxs = info
-                                    .contexts()
-                                    .await
-                                    .expect("Failed to fetch asset ctxs");
+                                let asset_ctxs =
+                                    info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                                let asset_ctx =
-                                asset_ctx(&asset_ctxs,&pair.base)
+                                let asset_ctx = asset_ctx(&asset_ctxs, &pair.base)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!("Failed to find base asset:  {}", pair.base));
 
@@ -2062,33 +2176,50 @@ pub async fn startup(config: &mut Config) {
                                 println!("Size in USD: {}", parse_size(base_sz, base_sz_decimals));
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2098,13 +2229,10 @@ pub async fn startup(config: &mut Config) {
 
                             // takes another 50% of order size and shorts Asset Y
                             {
-                                let asset_ctxs = info
-                                    .contexts()
-                                    .await
-                                    .expect("Failed to fetch asset ctxs");
+                                let asset_ctxs =
+                                    info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                                let asset_ctx =
-                                asset_ctx(&asset_ctxs,&pair.quote)
+                                let asset_ctx = asset_ctx(&asset_ctxs, &pair.quote)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!(
                                         "Failed to find quote asset:  {}",
@@ -2140,33 +2268,50 @@ pub async fn startup(config: &mut Config) {
                                 );
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2183,14 +2328,11 @@ pub async fn startup(config: &mut Config) {
                                 quote_market_price,
                                 current_ratio,
                             ) = loop {
-                                let asset_ctxs = info
-                                    .contexts()
-                                    .await
-                                    .expect("Failed to fetch asset ctxs");
+                                let asset_ctxs =
+                                    info.contexts().await.expect("Failed to fetch asset ctxs");
 
                                 let base_limit_price = {
-                                    let base_asset_ctx =
-                                        asset_ctx(&asset_ctxs,&pair.base)
+                                    let base_asset_ctx = asset_ctx(&asset_ctxs, &pair.base)
                                         .expect("Failed to fetch asset ctxs")
                                         .expect(&format!(
                                             "Failed to find quote asset:  {}",
@@ -2200,8 +2342,7 @@ pub async fn startup(config: &mut Config) {
                                 };
 
                                 let quote_market_price = {
-                                    let quote_asset_ctx =
-                                        asset_ctx(&asset_ctxs,&pair.quote)
+                                    let quote_asset_ctx = asset_ctx(&asset_ctxs, &pair.quote)
                                         .expect("Failed to fetch asset ctxs")
                                         .expect(&format!(
                                             "Failed to find quote asset:  {}",
@@ -2266,33 +2407,50 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", base_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2326,33 +2484,50 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", quote_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2368,14 +2543,11 @@ pub async fn startup(config: &mut Config) {
                         println!("Monitoring positions for tp or sl\n---");
 
                         let (exit_long_order, exit_short_order, current_ratio) = loop {
-                            let asset_ctxs = info
-                                .contexts()
-                                .await
-                                .expect("Failed to fetch asset ctxs");
-                            
+                            let asset_ctxs =
+                                info.contexts().await.expect("Failed to fetch asset ctxs");
+
                             let base_market_price = {
-                                let base_asset_ctx =
-                                    asset_ctx(&asset_ctxs,&pair.base)
+                                let base_asset_ctx = asset_ctx(&asset_ctxs, &pair.base)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!(
                                         "Failed to find quote asset:  {}",
@@ -2385,8 +2557,7 @@ pub async fn startup(config: &mut Config) {
                             };
 
                             let quote_market_price = {
-                                let quote_asset_ctx =
-                                    asset_ctx(&asset_ctxs,&pair.quote)
+                                let quote_asset_ctx = asset_ctx(&asset_ctxs, &pair.quote)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!(
                                         "Failed to find quote asset:  {}",
@@ -2409,9 +2580,7 @@ pub async fn startup(config: &mut Config) {
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: false,
-                                        limit_px: parse_price(
-                                            base_market_price * (1.0 - slippage),
-                                        ),
+                                        limit_px: parse_price(base_market_price * (1.0 - slippage)),
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -2441,9 +2610,7 @@ pub async fn startup(config: &mut Config) {
                                     let exit_long_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: false,
-                                        limit_px: parse_price(
-                                            base_market_price * (1.0 - slippage),
-                                        ),
+                                        limit_px: parse_price(base_market_price * (1.0 - slippage)),
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -2489,16 +2656,26 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),vec![exit_long_order], None).await {
+                        match exchange
+                            .place_order(wallet.clone(), vec![exit_long_order], None)
+                            .await
+                        {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
-                                
                                 }
-                                
+
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    let statuses =
+                                        match order.data.expect("expected order response data") {
+                                            StatusType::Statuses(statuses) => statuses,
+                                            _ => {
+                                                println!("Invalid response data");
+                                                return;
+                                            }
+                                        };
+                                    statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2514,7 +2691,7 @@ pub async fn startup(config: &mut Config) {
                                         Status::Error(msg) => {
                                             println!("Order failed with error: {:#?}\n", msg)
                                         }
-                                        _ =>  unreachable!(),
+                                        _ => unreachable!(),
                                     });
                                 }
                             },
@@ -2534,16 +2711,26 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),vec![exit_short_order], None).await {
+                        match exchange
+                            .place_order(wallet.clone(), vec![exit_short_order], None)
+                            .await
+                        {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
-                                
                                 }
-                                
+
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    let statuses =
+                                        match order.data.expect("expected order response data") {
+                                            StatusType::Statuses(statuses) => statuses,
+                                            _ => {
+                                                println!("Invalid response data");
+                                                return;
+                                            }
+                                        };
+                                    statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2559,7 +2746,7 @@ pub async fn startup(config: &mut Config) {
                                         Status::Error(msg) => {
                                             println!("Order failed with error: {:#?}\n", msg)
                                         }
-                                        _ =>  unreachable!(),
+                                        _ => unreachable!(),
                                     });
                                 }
                             },
@@ -2613,17 +2800,13 @@ pub async fn startup(config: &mut Config) {
                         "Invalid take profit value, expected a number or a percentage value e.g 10%",
                     )
                 });
-                let wallet = Arc::new(
-                    match config
-                        .private_key
-                        .parse::<LocalWallet>() {
-                            Ok(wallet) => wallet,
-                            Err(_) => {
-                                println!("Error: Invalid private key");
-                                return;
-                            }
-                        }
-                );
+                let wallet = Arc::new(match config.private_key.parse::<LocalWallet>() {
+                    Ok(wallet) => wallet,
+                    Err(_) => {
+                        println!("Error: Invalid private key");
+                        return;
+                    }
+                });
 
                 // ----------------------------------------------
                 let slippage = 3.0 / 100.0;
@@ -2644,13 +2827,10 @@ pub async fn startup(config: &mut Config) {
                         if target == 0.0 {
                             // Takes 50% of order size and shorts Asset X and
                             {
-                                let asset_ctxs = info
-                                    .contexts()
-                                    .await
-                                    .expect("Failed to fetch asset ctxs");
+                                let asset_ctxs =
+                                    info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                                let asset_ctx =
-                                asset_ctx(&asset_ctxs,&pair.base)
+                                let asset_ctx = asset_ctx(&asset_ctxs, &pair.base)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!("Failed to find base asset:  {}", pair.base));
 
@@ -2680,33 +2860,50 @@ pub async fn startup(config: &mut Config) {
                                 println!("Size in USD: {}", parse_size(base_sz, base_sz_decimals));
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2716,13 +2913,10 @@ pub async fn startup(config: &mut Config) {
 
                             // takes another 50% of order size and longs Asset Y
                             {
-                                let asset_ctxs = info
-                                    .contexts()
-                                    .await
-                                    .expect("Failed to fetch asset ctxs");
+                                let asset_ctxs =
+                                    info.contexts().await.expect("Failed to fetch asset ctxs");
 
-                                let asset_ctx =
-                                asset_ctx(&asset_ctxs,&pair.quote)
+                                let asset_ctx = asset_ctx(&asset_ctxs, &pair.quote)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!(
                                         "Failed to find quote asset:  {}",
@@ -2758,33 +2952,50 @@ pub async fn startup(config: &mut Config) {
                                 );
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2802,14 +3013,11 @@ pub async fn startup(config: &mut Config) {
                                 quote_market_price,
                                 current_ratio,
                             ) = loop {
-                                let asset_ctxs = info
-                                    .contexts()
-                                    .await
-                                    .expect("Failed to fetch asset ctxs");
+                                let asset_ctxs =
+                                    info.contexts().await.expect("Failed to fetch asset ctxs");
 
                                 let base_market_price = {
-                                    let base_asset_ctx =
-                                        asset_ctx(&asset_ctxs,&pair.base)
+                                    let base_asset_ctx = asset_ctx(&asset_ctxs, &pair.base)
                                         .expect("Failed to fetch asset ctxs")
                                         .expect(&format!(
                                             "Failed to find quote asset:  {}",
@@ -2819,8 +3027,7 @@ pub async fn startup(config: &mut Config) {
                                 };
 
                                 let quote_market_price = {
-                                    let quote_asset_ctx =
-                                        asset_ctx(&asset_ctxs,&pair.quote)
+                                    let quote_asset_ctx = asset_ctx(&asset_ctxs, &pair.quote)
                                         .expect("Failed to fetch asset ctxs")
                                         .expect(&format!(
                                             "Failed to find quote asset:  {}",
@@ -2885,33 +3092,50 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", base_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                                });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2946,33 +3170,50 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", quote_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),vec![order], None).await {
-                                    Ok(order) => {
-                                        match order {
-                                            Response::Err(err) => {
-                                                println!("{:#?}", err);
-                                                return;
-                                            
-                                            }
-                                            
-                                            Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
-                                                    Status::Filled(order) => {
-                                                        println!("Order {} was successfully filled.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Resting(order) => {
-                                                        println!("Order {} was successfully placed.\n", order.oid);
-                                                        
-                                                    }
-                                                    Status::Error(msg) => {
-                                                        println!("Order failed with error: {:#?}\n", msg)
-                                                    }
-                                                    _ =>  unreachable!(),
-                                            });
-                                            }
+                                match exchange
+                                    .place_order(wallet.clone(), vec![order], None)
+                                    .await
+                                {
+                                    Ok(order) => match order {
+                                        Response::Err(err) => {
+                                            println!("{:#?}", err);
+                                            return;
                                         }
-                                    }
+
+                                        Response::Ok(order) => {
+                                            let statuses = match order
+                                                .data
+                                                .expect("expected order response data")
+                                            {
+                                                StatusType::Statuses(statuses) => statuses,
+                                                _ => {
+                                                    println!("Invalid response data");
+                                                    return;
+                                                }
+                                            };
+                                            statuses.iter().for_each(|status| match status {
+                                                Status::Filled(order) => {
+                                                    println!(
+                                                        "Order {} was successfully filled.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Resting(order) => {
+                                                    println!(
+                                                        "Order {} was successfully placed.\n",
+                                                        order.oid
+                                                    );
+                                                }
+                                                Status::Error(msg) => {
+                                                    println!(
+                                                        "Order failed with error: {:#?}\n",
+                                                        msg
+                                                    )
+                                                }
+                                                _ => unreachable!(),
+                                            });
+                                        }
+                                    },
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2988,11 +3229,11 @@ pub async fn startup(config: &mut Config) {
                         println!("Monitoring positions for tp or sl\n---");
 
                         let (exit_short_order, exit_long_order, current_ratio) = loop {
-                            let asset_ctxs = info.contexts().await.expect("Failed to fetch asset ctxs");
+                            let asset_ctxs =
+                                info.contexts().await.expect("Failed to fetch asset ctxs");
 
                             let base_market_price = {
-                                let base_asset_ctx =
-                                    asset_ctx(&asset_ctxs,&pair.base)
+                                let base_asset_ctx = asset_ctx(&asset_ctxs, &pair.base)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!(
                                         "Failed to find quote asset:  {}",
@@ -3002,8 +3243,7 @@ pub async fn startup(config: &mut Config) {
                             };
 
                             let quote_market_price = {
-                                let quote_asset_ctx =
-                                    asset_ctx(&asset_ctxs,&pair.quote)
+                                let quote_asset_ctx = asset_ctx(&asset_ctxs, &pair.quote)
                                     .expect("Failed to fetch asset ctxs")
                                     .expect(&format!(
                                         "Failed to find quote asset:  {}",
@@ -3026,9 +3266,7 @@ pub async fn startup(config: &mut Config) {
                                     let exit_short_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: true,
-                                        limit_px: parse_price(
-                                            base_market_price * (1.0 + slippage),
-                                        ),
+                                        limit_px: parse_price(base_market_price * (1.0 + slippage)),
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -3058,9 +3296,7 @@ pub async fn startup(config: &mut Config) {
                                     let exit_short_order = OrderRequest {
                                         asset: base_asset,
                                         is_buy: true,
-                                        limit_px: parse_price(
-                                            base_market_price * (1.0 + slippage),
-                                        ),
+                                        limit_px: parse_price(base_market_price * (1.0 + slippage)),
                                         sz: parse_size(base_sz, base_sz_decimals),
                                         reduce_only: true,
                                         order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
@@ -3106,16 +3342,26 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),vec![exit_short_order], None).await {
+                        match exchange
+                            .place_order(wallet.clone(), vec![exit_short_order], None)
+                            .await
+                        {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
-                                
                                 }
-                                
+
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    let statuses =
+                                        match order.data.expect("expected order response data") {
+                                            StatusType::Statuses(statuses) => statuses,
+                                            _ => {
+                                                println!("Invalid response data");
+                                                return;
+                                            }
+                                        };
+                                    statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -3131,7 +3377,7 @@ pub async fn startup(config: &mut Config) {
                                         Status::Error(msg) => {
                                             println!("Order failed with error: {:#?}\n", msg)
                                         }
-                                        _ =>  unreachable!(),
+                                        _ => unreachable!(),
                                     });
                                 }
                             },
@@ -3151,16 +3397,26 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),vec![exit_long_order], None).await {
+                        match exchange
+                            .place_order(wallet.clone(), vec![exit_long_order], None)
+                            .await
+                        {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
                                     return;
-                                
                                 }
-                                
+
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    let statuses =
+                                        match order.data.expect("expected order response data") {
+                                            StatusType::Statuses(statuses) => statuses,
+                                            _ => {
+                                                println!("Invalid response data");
+                                                return;
+                                            }
+                                        };
+                                    statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -3176,7 +3432,7 @@ pub async fn startup(config: &mut Config) {
                                         Status::Error(msg) => {
                                             println!("Order failed with error: {:#?}\n", msg)
                                         }
-                                        _ =>  unreachable!(),
+                                        _ => unreachable!(),
                                     });
                                 }
                             },
