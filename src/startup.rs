@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ethers::{signers::{LocalWallet, Signer}, types::Chain::{Dev, ArbitrumGoerli, Arbitrum}};
-use hyperliquid::{Hyperliquid, Info, Exchange, types::{exchange::{request::{Chain, OrderType, Trigger, OrderRequest, Limit, Tif, TpSl }, response::{Response, Status}}, info::response::Side}, utils::{parse_price, parse_size}};
+use ethers::signers::{LocalWallet, Signer};
+use hyperliquid::{types::{exchange::{request::{ Limit, OrderRequest, OrderType, Tif, TpSl, Trigger }, response::{Response, Status, StatusType}}, Chain, Side}, utils::{parse_price, parse_size}, Exchange, Hyperliquid, Info};
 
 use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, MarginType, SzPerInterval, TwapInterval, Pair, Config}, helpers::asset_ctx};
 
@@ -11,12 +11,8 @@ use crate::{command::command, types::{OrderSize, TpSl as TPSL, LimitPrice, Margi
 pub async fn startup(config: &mut Config) {
 
 
-    let chain =  match config.chain {
-        Dev => Chain::Dev,
-        ArbitrumGoerli => Chain::ArbitrumGoerli,
-        Arbitrum => Chain::Arbitrum    ,
-        _ => return println!("{}", format!("Chain {:?} not supported", config.chain)),
-    };
+
+    let chain = config.chain;
 
     let info: Info = Hyperliquid::new(chain);
     let exchange: Exchange = Hyperliquid::new(chain);
@@ -27,7 +23,7 @@ pub async fn startup(config: &mut Config) {
         .universe
         .into_iter()
         .enumerate()
-        .map(|(i, asset)| (asset.name.to_uppercase(), (asset.sz_decimals, i as u32)))
+        .map(|(i, asset)| (asset.name.to_uppercase(), (asset.sz_decimals as u32, i as u32)))
         .collect::<HashMap<String, (u32, u32)>>();
 
     match command().get_matches().subcommand() {
@@ -59,19 +55,18 @@ pub async fn startup(config: &mut Config) {
                 .get_one::<String>("chain")
                 .expect("Chain is required");
 
-            let chain = match chain.to_lowercase().as_str() {
-                "dev" => Dev,
-                "arbitrum-goerli" => ArbitrumGoerli,
-                "arbitrum" => Arbitrum,
+            config.chain = match chain.to_lowercase().as_str() {
+                "dev" | "arbitrum-testnet" => Chain::ArbitrumTestnet,
+                "arbitrum-goerli" => Chain::ArbitrumGoerli,
+                "arbitrum" => Chain::Arbitrum,
                 _ => {
-                    println!("Invalid chain, expected 'dev', 'arbitrum-goerli' or 'arbitrum'");
+                    println!("Invalid chain, expected 'arbitrum testnet', 'arbitrum-goerli' or 'arbitrum'");
                     return;
                 }
             };
 
             println!("Setting default chain to {}\n", chain);
 
-            config.chain = chain;
 
             match config.save() {
                 Ok(_) => println!("Chain successfully saved ✔️\n---"),
@@ -317,6 +312,7 @@ pub async fn startup(config: &mut Config) {
                 .expect("Failed to find asset");
 
             let order = OrderRequest {
+                cloid: None,
                 asset,
                 is_buy: !is_buy,
                 limit_px: parse_price(trigger_price),
@@ -334,7 +330,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Entry price: {}", entry_price);
 
-            match exchange.place_order(wallet.clone(),order, None).await {
+            match exchange.place_order(wallet.clone(), vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -342,8 +338,10 @@ pub async fn startup(config: &mut Config) {
                     
                     }
                     
-                    Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                    Response::Ok(order) => 
+                        match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => {
+                                statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!(
                                     "Take profit order {} was successfully filled.\n",
@@ -362,8 +360,11 @@ pub async fn startup(config: &mut Config) {
                             _ =>  unreachable!(),
 
                         });
-                    }
-                },
+
+                    },
+                    _ =>  unreachable!(),
+                    
+                }},
                 Err(err) => {
                     println!("{:#?}", err);
                     return;
@@ -474,8 +475,9 @@ pub async fn startup(config: &mut Config) {
                 .expect("Failed to find asset");
 
             let order = OrderRequest {
+                cloid: None,
                 asset,
-                is_buy: is_buy,
+                is_buy,
                 limit_px: parse_price(trigger_price),
                 sz: parse_size(sz, sz_decimals),
                 reduce_only: true,
@@ -492,7 +494,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Entry price: {}", entry_price);
 
-            match exchange.place_order(wallet.clone(),order, None).await {
+            match exchange.place_order(wallet.clone(), vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -500,8 +502,10 @@ pub async fn startup(config: &mut Config) {
                     
                     }
                     
-                    Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                    Response::Ok(order) => 
+                        match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => {
+                                statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!(
                                     "Stop loss order {} was successfully filled.\n",
@@ -520,8 +524,9 @@ pub async fn startup(config: &mut Config) {
                             _ =>  unreachable!(),
 
                         });
-                    }
-                },
+                    },
+                    _ =>  unreachable!(),
+                }},
                 Err(err) => {
                     println!("{:#?}", err);
                     return;
@@ -628,6 +633,7 @@ pub async fn startup(config: &mut Config) {
             // FIXME: update_leverage(&exchange, &config).await;
 
             let order = OrderRequest {
+                cloid: None,
                 asset,
                 is_buy: true,
                 limit_px: parse_price(limit_price),
@@ -650,7 +656,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Market price: {}\n", market_price);
 
-            match exchange.place_order(wallet.clone(), order, None).await {
+            match exchange.place_order(wallet.clone(), vec![ order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -659,7 +665,9 @@ pub async fn startup(config: &mut Config) {
                     }
                     
                     Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => {
+                                statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
                             }
@@ -671,8 +679,10 @@ pub async fn startup(config: &mut Config) {
                             }
                             _ =>  unreachable!(),
                         });
-                    }
-                },
+                    },
+                    _ =>  unreachable!(),
+                }
+                }},
                 Err(err) => {
                     println!("{:#?}", err);
                     return;
@@ -697,6 +707,7 @@ pub async fn startup(config: &mut Config) {
                 });
 
                 let order = OrderRequest {
+                    cloid: None,
                     asset,
                     is_buy: false,
                     limit_px: parse_price(trigger_price),
@@ -715,7 +726,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(), vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -723,8 +734,10 @@ pub async fn startup(config: &mut Config) {
                         
                         }
                         
-                        Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        Response::Ok(order) => 
+                            match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => {
+                                    statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Take profit order {} was successfully filled.\n",
@@ -742,7 +755,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 _ =>  unreachable!(),
                             });
-                        }
+                        },
+                        _ =>  unreachable!(),
+                    }
                     },
                     Err(err) => {
                         println!("{:#?}", err);
@@ -768,6 +783,7 @@ pub async fn startup(config: &mut Config) {
                 });
 
                 let order = OrderRequest {
+                    cloid: None,
                     asset,
                     is_buy: false,
                     limit_px: parse_price(trigger_price),
@@ -786,7 +802,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(), vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -795,7 +811,9 @@ pub async fn startup(config: &mut Config) {
                         }
                         
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => {
+                                    statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Stop loss order {} was successfully filled.\n",
@@ -813,7 +831,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 _ =>  unreachable!(),
                             });
-                        }
+                        },
+                        _ =>  unreachable!(),
+                    }}
                     },
                     Err(err) => {
                         println!("{:#?}", err);
@@ -923,6 +943,7 @@ pub async fn startup(config: &mut Config) {
             // Update leverage
 
             let order = OrderRequest {
+                cloid: None,
                 asset,
                 is_buy: false,
                 limit_px: parse_price(limit_price),
@@ -945,7 +966,7 @@ pub async fn startup(config: &mut Config) {
             );
             println!("Market price: {}\n", market_price);
 
-            match exchange.place_order(wallet.clone(),order, None).await {
+            match exchange.place_order(wallet.clone(), vec![order], None).await {
                 Ok(order) => match order {
                     Response::Err(err) => {
                         println!("{:#?}", err);
@@ -954,7 +975,9 @@ pub async fn startup(config: &mut Config) {
                     }
                     
                     Response::Ok(order) => {
-                        order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        match order.data.expect("expected order response data") {
+                            StatusType::Statuses(statuses) => {
+                                statuses.iter().for_each(|status| match status {
                             Status::Filled(order) => {
                                 println!("Order {} was successfully filled.\n", order.oid);
                             }
@@ -966,8 +989,10 @@ pub async fn startup(config: &mut Config) {
                             }
                             _ =>  unreachable!(),
                         });
-                    }
-                },
+                    },
+                    _ =>  unreachable!(),
+                }
+                }},
                 Err(err) => {
                     println!("{:#?}", err);
                     return;
@@ -990,6 +1015,7 @@ pub async fn startup(config: &mut Config) {
                 });
 
                 let order = OrderRequest {
+                    cloid: None,
                     asset,
                     is_buy: true,
                     limit_px: parse_price(trigger_price),
@@ -1008,7 +1034,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(), vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -1016,8 +1042,10 @@ pub async fn startup(config: &mut Config) {
                         
                         }
                         
-                        Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                        Response::Ok(order) => 
+                            match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => {
+                                    statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Take profit order {} was successfully filled.\n",
@@ -1035,7 +1063,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 _ =>  unreachable!(),
                             });
-                        }
+                        },
+                        _ =>  unreachable!(),
+                    }
                     },
                     Err(err) => {
                         println!("{:#?}", err);
@@ -1060,6 +1090,7 @@ pub async fn startup(config: &mut Config) {
                 });
 
                 let order = OrderRequest {
+                    cloid: None,
                     asset,
                     is_buy: true,
                     limit_px: parse_price(trigger_price),
@@ -1078,7 +1109,7 @@ pub async fn startup(config: &mut Config) {
                 println!("Entry price: {}", order.limit_px);
                 println!("Market price: {}\n", market_price);
 
-                match exchange.place_order(wallet.clone(),order, None).await {
+                match exchange.place_order(wallet.clone(), vec![order], None).await {
                     Ok(order) => match order {
                         Response::Err(err) => {
                             println!("{:#?}", err);
@@ -1087,7 +1118,9 @@ pub async fn startup(config: &mut Config) {
                         }
                         
                         Response::Ok(order) => {
-                            order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                            match order.data.expect("expected order response data") {
+                                StatusType::Statuses(statuses) => {
+                                    statuses.iter().for_each(|status| match status {
                                 Status::Filled(order) => {
                                     println!(
                                         "Stop loss order {} was successfully filled.\n",
@@ -1105,8 +1138,10 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 _ =>  unreachable!(),
                             });
-                        }
-                    },
+                        },
+                        _ =>  unreachable!(),
+                    }
+                    }},
                     Err(err) => {
                         println!("{:#?}", err);
                         return;
@@ -1188,6 +1223,7 @@ pub async fn startup(config: &mut Config) {
                     println!("Market price: {}\n", market_price);
 
                     let order = OrderRequest {
+                        cloid: None,
                         asset,
                         is_buy: true,
                         limit_px: parse_price(limit_price),
@@ -1196,7 +1232,7 @@ pub async fn startup(config: &mut Config) {
                         order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
                     };
 
-                    match exchange.place_order(wallet.clone(),order, None).await {
+                    match exchange.place_order(wallet.clone(), vec![order], None).await {
                         Ok(order) => match order {
                             Response::Err(err) => {
                                 println!("{:#?}", err);
@@ -1205,7 +1241,9 @@ pub async fn startup(config: &mut Config) {
                             }
                             
                             Response::Ok(order) => {
-                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                match order.data.expect("expected order response data") {
+                                    StatusType::Statuses(statuses) => {
+                                        statuses.iter().for_each(|status| match status {
                                     Status::Filled(order) => {
                                         println!("Order {} was successfully filled.\n", order.oid)
                                     }
@@ -1217,8 +1255,10 @@ pub async fn startup(config: &mut Config) {
                                     }
                                     _ =>  unreachable!(),
                                 });
-                            }
-                        },
+                            },
+                            _ =>  unreachable!(),
+                        }
+                        }},
                         Err(err) => {
                             println!("{:#?}", err);
                             return;
@@ -1300,6 +1340,7 @@ pub async fn startup(config: &mut Config) {
                     println!("Market price: {}\n", market_price);
 
                     let order = OrderRequest {
+                        cloid: None,
                         asset,
                         is_buy: false,
                         limit_px: parse_price(limit_price),
@@ -1308,7 +1349,7 @@ pub async fn startup(config: &mut Config) {
                         order_type: OrderType::Limit(Limit { tif: Tif::Gtc }),
                     };
 
-                    match exchange.place_order(wallet.clone(),order, None).await {
+                    match exchange.place_order(wallet.clone(), vec![order], None).await {
                         Ok(order) => match order {
                             Response::Err(err) => {
                                 println!("{:#?}", err);
@@ -1317,7 +1358,9 @@ pub async fn startup(config: &mut Config) {
                             }
                             
                             Response::Ok(order) => {
-                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                match order.data.expect("expected order response data") {
+                                    StatusType::Statuses(statuses) => {
+                                        statuses.iter().for_each(|status| match status {
                                     Status::Filled(order) => {
                                         println!("Order {} was successfully filled.\n", order.oid)
                                     }
@@ -1329,8 +1372,10 @@ pub async fn startup(config: &mut Config) {
                                     }
                                     _ =>  unreachable!(),
                                 });
-                            }
-                        },
+                            },
+                            _ =>  unreachable!(),
+                        }
+                        }},
                         Err(err) => {
                             println!("{:#?}", err);
                             return;
@@ -1421,6 +1466,7 @@ pub async fn startup(config: &mut Config) {
                         println!("Market price: {}\n", market_price);
 
                         let order = OrderRequest {
+                            cloid: None,
                             asset,
                             is_buy: true,
                             limit_px: parse_price(limit_price),
@@ -1429,7 +1475,7 @@ pub async fn startup(config: &mut Config) {
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                         };
 
-                        match exchange.place_order(wallet.clone(),order, None).await {
+                        match exchange.place_order(wallet.clone(), vec![order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -1528,6 +1574,7 @@ pub async fn startup(config: &mut Config) {
                         println!("Market price: {}\n", market_price);
 
                         let order = OrderRequest {
+                            cloid: None,
                             asset,
                             is_buy: false,
                             limit_px: parse_price(limit_price),
@@ -1536,7 +1583,7 @@ pub async fn startup(config: &mut Config) {
                             order_type: OrderType::Limit(Limit { tif: Tif::Ioc }),
                         };
 
-                        match exchange.place_order(wallet.clone(),order, None).await {
+                        match exchange.place_order(wallet.clone(), vec![order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -1810,6 +1857,7 @@ pub async fn startup(config: &mut Config) {
                                 let sz = base_sz / market_price;
 
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: base_asset,
                                     is_buy: true,
                                     limit_px: parse_price(limit_price),
@@ -1829,9 +1877,8 @@ pub async fn startup(config: &mut Config) {
                                 println!("Size in USD: {}", parse_size(base_sz, base_sz_decimals));
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
-                                        match order {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
                                                 return;
@@ -1839,7 +1886,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -1853,9 +1902,11 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
                                         }
                                     }
+                                }    
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -1884,6 +1935,7 @@ pub async fn startup(config: &mut Config) {
                                 let sz = quote_sz / market_price;
 
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: quote_asset,
                                     is_buy: false,
                                     limit_px: parse_price(limit_price),
@@ -1906,8 +1958,8 @@ pub async fn startup(config: &mut Config) {
                                 );
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => 
                                         match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
@@ -1916,7 +1968,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -1930,7 +1984,9 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
                                     Err(err) => {
@@ -2008,6 +2064,7 @@ pub async fn startup(config: &mut Config) {
                             // send buy order request
                             {
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: base_asset,
                                     is_buy: true,
                                     limit_px: parse_price(base_market_price * (1.0 + slippage)),
@@ -2031,7 +2088,7 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", base_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
                                     Ok(order) => {
                                         match order {
                                             Response::Err(err) => {
@@ -2041,7 +2098,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -2055,9 +2114,12 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
+                                }
                                     Err(err) => {
                                         println!("{:#?}", err);
                                         return;
@@ -2067,6 +2129,7 @@ pub async fn startup(config: &mut Config) {
                             // send sell order request
                             {
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: quote_asset,
                                     is_buy: false,
                                     limit_px: parse_price(quote_market_price * (1.0 - slippage)),
@@ -2090,8 +2153,8 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", quote_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => 
                                         match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
@@ -2100,7 +2163,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -2114,7 +2179,9 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
                                     Err(err) => {
@@ -2171,6 +2238,7 @@ pub async fn startup(config: &mut Config) {
                                     println!("Take profit reached: {} >= {}", current_ratio, tp);
 
                                     let exit_long_order = OrderRequest {
+                                        cloid: None,
                                         asset: base_asset,
                                         is_buy: false,
                                         limit_px: parse_price(
@@ -2182,6 +2250,7 @@ pub async fn startup(config: &mut Config) {
                                     };
 
                                     let exit_short_order = OrderRequest {
+                                        cloid: None,
                                         asset: quote_asset,
                                         is_buy: true,
                                         limit_px: parse_price(
@@ -2201,6 +2270,7 @@ pub async fn startup(config: &mut Config) {
                                     println!("Stop loss reached: {} <= {}", current_ratio, sl);
 
                                     let exit_long_order = OrderRequest {
+                                        cloid: None,
                                         asset: base_asset,
                                         is_buy: false,
                                         limit_px: parse_price(
@@ -2212,6 +2282,7 @@ pub async fn startup(config: &mut Config) {
                                     };
 
                                     let exit_short_order = OrderRequest {
+                                        cloid: None,
                                         asset: quote_asset,
                                         is_buy: true,
                                         limit_px: parse_price(
@@ -2249,7 +2320,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_long_order, None).await {
+                        match exchange.place_order(wallet.clone(), vec![exit_long_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2258,7 +2329,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => {
+                                            statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2276,8 +2349,10 @@ pub async fn startup(config: &mut Config) {
                                         }
                                         _ =>  unreachable!(),
                                     });
-                                }
-                            },
+                                },
+                                _ =>  unreachable!(),
+                            }
+                            }},
                             Err(err) => {
                                 println!("{:#?}", err);
                                 return;
@@ -2294,7 +2369,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_short_order, None).await {
+                        match exchange.place_order(wallet.clone(), vec![exit_short_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2303,7 +2378,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => {
+                                            statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2321,8 +2398,10 @@ pub async fn startup(config: &mut Config) {
                                         }
                                         _ =>  unreachable!(),
                                     });
-                                }
-                            },
+                                },
+                                _ =>  unreachable!(),
+                            }
+                            }},
                             Err(err) => {
                                 println!("{:#?}", err);
                                 return;
@@ -2420,6 +2499,7 @@ pub async fn startup(config: &mut Config) {
                                 let sz = base_sz / market_price;
 
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: base_asset,
                                     is_buy: false,
                                     limit_px: parse_price(limit_price),
@@ -2439,8 +2519,8 @@ pub async fn startup(config: &mut Config) {
                                 println!("Size in USD: {}", parse_size(base_sz, base_sz_decimals));
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => 
                                         match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
@@ -2449,7 +2529,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -2463,7 +2545,9 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
                                     Err(err) => {
@@ -2494,6 +2578,7 @@ pub async fn startup(config: &mut Config) {
                                 let sz = quote_sz / market_price;
 
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: quote_asset,
                                     is_buy: true,
                                     limit_px: parse_price(limit_price),
@@ -2516,8 +2601,8 @@ pub async fn startup(config: &mut Config) {
                                 );
                                 println!("Market price: {}\n", market_price);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => 
                                         match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
@@ -2526,7 +2611,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -2540,7 +2627,9 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
                                     Err(err) => {
@@ -2619,6 +2708,7 @@ pub async fn startup(config: &mut Config) {
                             // send sell order request
                             {
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: base_asset,
                                     is_buy: false,
                                     limit_px: parse_price(base_market_price * (1.0 - slippage)),
@@ -2642,8 +2732,8 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", base_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => 
                                         match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
@@ -2652,7 +2742,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -2666,7 +2758,9 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                                 });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
                                     Err(err) => {
@@ -2679,6 +2773,7 @@ pub async fn startup(config: &mut Config) {
                             // send buy order request
                             {
                                 let order = OrderRequest {
+                                    cloid: None,
                                     asset: quote_asset,
                                     is_buy: true,
                                     limit_px: parse_price(quote_market_price * (1.0 + slippage)),
@@ -2702,8 +2797,8 @@ pub async fn startup(config: &mut Config) {
                                 println!("Market price: {}\n", quote_market_price);
                                 println!("Ratio: {}\n", current_ratio);
 
-                                match exchange.place_order(wallet.clone(),order, None).await {
-                                    Ok(order) => {
+                                match exchange.place_order(wallet.clone(), vec![order], None).await {
+                                    Ok(order) => 
                                         match order {
                                             Response::Err(err) => {
                                                 println!("{:#?}", err);
@@ -2712,7 +2807,9 @@ pub async fn startup(config: &mut Config) {
                                             }
                                             
                                             Response::Ok(order) => {
-                                                order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                                match order.data.expect("expected order response data") {
+                                                    StatusType::Statuses(statuses) => {
+                                                        statuses.iter().for_each(|status| match status {
                                                     Status::Filled(order) => {
                                                         println!("Order {} was successfully filled.\n", order.oid);
                                                         
@@ -2726,7 +2823,9 @@ pub async fn startup(config: &mut Config) {
                                                     }
                                                     _ =>  unreachable!(),
                                             });
-                                            }
+                                            },
+                                            _ =>  unreachable!(),
+                                        }
                                         }
                                     }
                                     Err(err) => {
@@ -2780,6 +2879,7 @@ pub async fn startup(config: &mut Config) {
                                     println!("Take profit reached: {} <= {}", current_ratio, tp);
 
                                     let exit_short_order = OrderRequest {
+                                        cloid: None,
                                         asset: base_asset,
                                         is_buy: true,
                                         limit_px: parse_price(
@@ -2791,6 +2891,7 @@ pub async fn startup(config: &mut Config) {
                                     };
 
                                     let exit_long_order = OrderRequest {
+                                        cloid: None,
                                         asset: quote_asset,
                                         is_buy: false,
                                         limit_px: parse_price(
@@ -2810,6 +2911,7 @@ pub async fn startup(config: &mut Config) {
                                     println!("Stop loss reached: {} >= {}", current_ratio, sl);
 
                                     let exit_short_order = OrderRequest {
+                                        cloid: None,
                                         asset: base_asset,
                                         is_buy: true,
                                         limit_px: parse_price(
@@ -2821,6 +2923,7 @@ pub async fn startup(config: &mut Config) {
                                     };
 
                                     let exit_long_order = OrderRequest {
+                                        cloid: None,
                                         asset: quote_asset,
                                         is_buy: false,
                                         limit_px: parse_price(
@@ -2858,7 +2961,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_short_order, None).await {
+                        match exchange.place_order(wallet.clone(), vec![exit_short_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2867,7 +2970,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => {
+                                            statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2885,8 +2990,10 @@ pub async fn startup(config: &mut Config) {
                                         }
                                         _ =>  unreachable!(),
                                     });
-                                }
-                            },
+                                },
+                                _ => unreachable!(),
+                            }
+                            }},
                             Err(err) => {
                                 println!("{:#?}", err);
                                 return;
@@ -2903,7 +3010,7 @@ pub async fn startup(config: &mut Config) {
                         );
                         println!("Ratio: {}\n", current_ratio);
 
-                        match exchange.place_order(wallet.clone(),exit_long_order, None).await {
+                        match exchange.place_order(wallet.clone(), vec![exit_long_order], None).await {
                             Ok(order) => match order {
                                 Response::Err(err) => {
                                     println!("{:#?}", err);
@@ -2912,7 +3019,9 @@ pub async fn startup(config: &mut Config) {
                                 }
                                 
                                 Response::Ok(order) => {
-                                    order.data.expect("expected order response data").statuses.iter().for_each(|status| match status {
+                                    match order.data.expect("expected order response data") {
+                                        StatusType::Statuses(statuses) => {
+                                            statuses.iter().for_each(|status| match status {
                                         Status::Filled(order) => {
                                             println!(
                                                 "Order {} was successfully filled.\n",
@@ -2930,8 +3039,10 @@ pub async fn startup(config: &mut Config) {
                                         }
                                         _ =>  unreachable!(),
                                     });
-                                }
-                            },
+                                },
+                                _ =>  unreachable!(),
+                            }
+                            }},
                             Err(err) => {
                                 println!("{:#?}", err);
                                 return;

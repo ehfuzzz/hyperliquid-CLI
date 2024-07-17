@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use ethers::types::Chain;
+use hyperliquid::types::Chain;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
